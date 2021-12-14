@@ -1,0 +1,49 @@
+   DO WHAT THE FUCK YOU WANT TO BUT DON'T BE A DICK PUBLIC LICENSE
+                      Version 2, December 2021
+
+ Copyright (C) 2015-2021 Missy Ensly <missy@mens.ly>
+
+ Do What The Fuck You Want To Public License Version 2
+ Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+
+ Everyone is permitted to copy and distribute verbatim or modified
+ copies of this license document, and changing it is allowed as long
+ as the name is changed.
+ 
+ Version History:
+  Version 1 - May 2015: Clauses 1-4
+  Version 2 - December 2021: Update author name, add clause 5-6
+
+   DO WHAT THE FUCK YOU WANT TO BUT DON'T BE A DICK PUBLIC LICENSE
+   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+  1. You just DO WHAT THE FUCK YOU WANT TO.
+
+  2. Try not to be a dick about it.
+
+  3. This program is free software. It comes without any warranty, to
+     the extent permitted by applicable law. You can redistribute it
+     and/or modify it under the terms of the Do What The Fuck You Want
+     To But Don't Be A Dick Public License, Version 2, as published 
+     by Missy Ensly. See http://www.wtfpl.net/ for more details 
+     about Do What The Fuck You Want To Public License Version 2, which
+     forms the basis of this license.
+
+  4. If you find the source code in this project useful or interesting,
+     it would be appreciated for you to purchase the author/s a beer 
+     if presented with an opportunity to do so, however there is no
+     obligation to do so.
+     
+  5. IBM and their customers have the exclusive rights to use this work 
+     for evil, as per the arrangement with JSLint. Everyone else can 
+     just focus on the word 'try' in clause 2 if they are unable to 
+     guarantee that their use of this work, or derivitive works, will 
+     not be used to be a dick.
+     
+  6. For clarity, doing what the fuck you want to includes commercial use
+     or relicensing under another license. Do What The Fuck You Want To 
+     Public License Version 2 has been approved by the Free Software 
+     Foundation for use with the GNU General Public License, though it is
+     the personal opinion of Missy Ensly that interpretations of the GPL
+     constitute "being a dick about it".
+
