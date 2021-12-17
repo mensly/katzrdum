@@ -1,11 +1,15 @@
+![Balrog](http://balrog.cat/images/balrog_wink.png)
 # katzrdum for Google Glass
 Software to manage publishing and configuring open source software designed for Google Glass.
 This project is still at the concept stage and may evaporate into vapourware, but let's hope not!
 
 Under construction: [KATZRDUM](https://mine.balrog.cat)
 
-## Planned Apps
+## Apps
 All code will be released on GitHub and licensed to allow commercial derivative works except where existing licenses make this impractical (eg COVID check-ins uwill need to use sensitive government APIs and RetroArch is GPL)
+
+Once repositories are available for projects compatible with katzdum, this section will link to them.
+
 * [x] COVID QR code check-in for Victoria
 * [ ] Basic minimap
 * [ ] Snake game similar to Nokia phones
@@ -18,15 +22,6 @@ All code will be released on GitHub and licensed to allow commercial derivative 
 * [ ] Expanded COVID check-in app for other regions
 * [ ] Expanded map application with search and directions
 * [ ] VNC viewer
-
-## TODO
-* [ ] Host APKs in firebase storage bucket
-* [ ] Add metadata in firestore database
-* [ ] Allow browsing and downloading APKs
-* [ ] Broadcast UDP packets containing public key of configuration agent
-* [ ] Compatable apps listen for UDP and prompt to establish secure TCP connection
-* [ ] App sends json describing fields for configuration
-* [ ] App for installation of apps on glass device through same configuration mechanism
 
 ## Example configurations
 * COVID QR code check-in app requires a name and a phone number; 
