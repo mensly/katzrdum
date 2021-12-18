@@ -18,6 +18,7 @@ Repositories for work done as subprojects of katzrum will be linked in this list
 * [ ] Emulator forked from [RetroArch](https://github.com/libretro/RetroArch)
 * [ ] [Faces](https://github.com/mensly/facesforglass) - Facial emotional recognition to assist people with autism spectrum disorders, 
 [shown to be helpful](https://med.stanford.edu/news/all-news/2018/08/google-glass-helps-kids-with-autism-read-facial-expressions.html)
+* [ ] PDF viewer
 * [ ] Notetaking
 * [ ] Trivia based on opentdb
 * [ ] Expanded COVID check-in app for other regions

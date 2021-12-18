@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:katzrdum/config.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,33 +17,20 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Katzrdum Mine',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.blueGrey,
       ),
-      home: const MyHomePage(title: 'Katzrdum Mine Home Page'),
+      initialRoute: '/',
+      routes: {
+        // When navigating to the "/" route, build the FirstScreen widget.
+        '/': (context) => const MyHomePage(title: 'La Mina de Katzrdum'),
+        '/config': (context) => const ConfigPage(title: "Configuració Katzrdum"),
+      },
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({Key? key, required this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
@@ -141,7 +129,12 @@ class _MyHomePageState extends State<MyHomePage> {
               Text(
                 'UNDER\nCONSTRUCTION',
                 style: Theme.of(context).textTheme.headline2,
+                textScaleFactor: 0.75,
                 textAlign: TextAlign.center,
+              ),
+              MaterialButton(
+                onPressed: () => Navigator.of(context).pushNamed("/config"),
+                child: const Text("Config (WIP)"),
               ),
               Text(
                 'Download and configure software for Google Glass',
@@ -156,7 +149,6 @@ class _MyHomePageState extends State<MyHomePage> {
             ];
             final counter = _counter;
             if (counter != null) {
-
               children.add(
                 StreamBuilder<int>(stream: counter, builder: (context, snapshot) =>
                 Text(
