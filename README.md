@@ -8,14 +8,15 @@ Under construction: [KATZRDUM](https://mine.balrog.cat)
 ## Apps
 All code will be released on GitHub and licensed to allow commercial derivative works except where existing licenses make this impractical (eg COVID check-ins uwill need to use sensitive government APIs and RetroArch is GPL)
 
-Once repositories are available for projects compatible with katzdum, this section will link to them.
+Repositories for work done as subprojects of katzrum will be linked in this list as they become available.
 
-* [x] COVID QR code check-in for Victoria
+* [x] [vicheckin](https://github.com/mensly/viccheckin) - COVID QR code check-in for Victoria
+* [x] [WatchMe](https://github.com/mensly/watchmeforglass) - Simple video playing demonstration
 * [ ] Basic minimap
 * [ ] Snake game similar to Nokia phones
 * [ ] YouTube player for music and videos, hopefully integrate with user's Google account for playlists
 * [ ] Emulator forked from [RetroArch](https://github.com/libretro/RetroArch)
-* [ ] Facial emotional recognition to assist people with autism spectrum disorders, 
+* [ ] [Faces](https://github.com/mensly/facesforglass) - Facial emotional recognition to assist people with autism spectrum disorders, 
 [shown to be helpful](https://med.stanford.edu/news/all-news/2018/08/google-glass-helps-kids-with-autism-read-facial-expressions.html)
 * [ ] Notetaking
 * [ ] Trivia based on opentdb
