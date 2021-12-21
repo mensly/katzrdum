@@ -1,4 +1,4 @@
-package cat.balrog.katzrdum.sample
+package cat.balrog.katzrdum
 
 import android.content.DialogInterface
 import androidx.annotation.Keep
@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.coroutineScope
+import cat.balrog.katzrdum.sample.BuildConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -112,6 +113,11 @@ sealed class ConfigField<T>(val key: String) {
 
 class StringField(key: String, @Keep val default: String = ""): ConfigField<String>(key) {
     override val type = "String"
+    override var value = default
+}
+
+class PasswordField(key: String, @Keep val default: String = ""): ConfigField<String>(key) {
+    override val type = "Password"
     override var value = default
 }
 
