@@ -1,8 +1,8 @@
 package cat.balrog.katzrdum.sample.sample
 
 import android.app.Application
-import cat.balrog.katzrdum.sample.Katzrdum
-import cat.balrog.katzrdum.sample.StringField
+import cat.balrog.katzrdum.Katzrdum
+import cat.balrog.katzrdum.StringField
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin

@@ -6,7 +6,7 @@ import android.view.Gravity
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.asLiveData
-import cat.balrog.katzrdum.sample.Katzrdum
+import cat.balrog.katzrdum.Katzrdum
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
