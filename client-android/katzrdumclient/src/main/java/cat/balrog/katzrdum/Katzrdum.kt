@@ -44,21 +44,22 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
     constructor(vararg fields: ConfigField<out Any>): this(fields.toList())
 
-    inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
+    private inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
         private val activity = WeakReference(activity)
-        private var udpSocket: DatagramSocket? = null
         private var remoteHost: InetAddress? = null
         private var remotePublicKey: String? = null
+        private var udpSocket by ClosingDelegate<DatagramSocket>()
         private var tcpSocket by ClosingDelegate<Socket>()
 
         override fun onResume(owner: LifecycleOwner) {
             super.onResume(owner)
+            handledKeys.clear()
             startUdpListener()
         }
 
         override fun onPause(owner: LifecycleOwner) {
             super.onPause(owner)
-            stopUdpListener()
+            udpSocket = null
             tcpSocket = null
         }
 
@@ -79,10 +80,13 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                     val message = try {
                         socket.receive(packet)
                         String(buffer, 0, packet.length)
-                    } catch (timeout: SocketTimeoutException) {
-                        null
+                    } catch (e: SocketTimeoutException) {
+                        null // Timeout is normal
+                    } catch (e: SocketException) {
+                        Log.e(TAG, "Error with UDP socket")
+                        return@thread // end thread
                     }
-                    message?.let { Log.d(TAG, "Received UDP: $it from $remoteHost") }
+                    message?.let { Log.d(TAG, "Received UDP: $it from ${packet.address}") }
                     if (message != null && message !in handledKeys && remotePublicKey != message) {
                         remoteHost = packet.address
                         remotePublicKey = message
@@ -95,10 +99,6 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             }
 
             // TODO: handle errors, restart and stuff
-        }
-
-        private fun stopUdpListener() {
-            udpSocket?.disconnect()
         }
 
         private fun connectToTcp() {
@@ -172,6 +172,7 @@ class ClosingDelegate<T: Closeable> {
     operator fun getValue(obj: Any, property: KProperty<*>) = value
 
     operator fun setValue(obj: Any, property: KProperty<*>, value: T?) {
+        this.value?.let { Log.d("Katz", "Closing $it") }
         this.value?.close()
         this.value = value
     }
