@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
@@ -20,7 +22,7 @@ class _ConfigPageState extends State<ConfigPage> {
   Socket? _client;
   var _broadcasting = false;
   String? _privateKey;
-  String? _config; // TODO: Load as JSON to build UI
+  List<String>? _config; // TODO: Load as JSON to build UI
 
   @override
   void initState() {
@@ -37,8 +39,8 @@ class _ConfigPageState extends State<ConfigPage> {
   }
 
   void _runServer() async {
-    _server = await ServerSocket.bind(InternetAddress.anyIPv4, _portTcp);
-    _server.listen((client) => _handleConnection(client));
+    final server = await ServerSocket.bind(InternetAddress.anyIPv4, _portTcp);
+    server.listen((client) => _handleConnection(client));
     _broadcast();
   }
 
@@ -77,10 +79,17 @@ class _ConfigPageState extends State<ConfigPage> {
     client.listen(
       (Uint8List data) async {
         final message = String.fromCharCodes(data);
+        // TODO: Properly parse different fields
+        // Sample data: {"fields":[{"name":"foo"},{"name":"bar"}]}
+        final fields = <String>[];
+        for (final field in jsonDecode(message)['fields']) {
+          final name = field['name'];
+          fields.add(name);
+        }
         setState(() {
-          // TODO: parse as JSON to show UI
-          _config = (_config ?? "") + message;
+          _config = fields;
         });
+        // TODO: Handle json parsing errors etc
       },
       onError: (error) {
         _disconnect();
@@ -95,11 +104,11 @@ class _ConfigPageState extends State<ConfigPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> body;
+    Widget body;
     final client = _client;
     final config = _config;
     if (kIsWeb) {
-      body = [
+      body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Image.asset('assets/balrog_wink.png', width: 320, height: 320),
         const SizedBox(
             width: 400,
@@ -107,32 +116,33 @@ class _ConfigPageState extends State<ConfigPage> {
                 'To securely communicate with your connected device, we need to '
                 'do things a website isn\'t allowed to do, please install '
                 'Katzrdum Mine on your Android or iOS device')),
-      ];
+      ]);
     } else if (client != null && config != null) {
       // Show config UI
-      body = [Text(config)];
+      body = ListView.builder(
+          itemCount: config.length,
+          itemBuilder: (context, index) => MaterialButton(
+              child: Text(config[index]),
+              onPressed: () {
+                client.writeln(config[index]);
+              }));
     } else {
       final loadingText = client == null
           ? 'Cercant Katzrdum a la xarxa local d\'ordinadors…'
           : 'S\'està carregant la configuració mitjançant un sòcol segur…';
-      body = [
+      body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Image.asset('assets/balrog_wink.png', width: 320, height: 320),
         Center(child: Text(loadingText)),
         const Padding(
           padding: EdgeInsets.all(64.0),
           child: CircularProgressIndicator(),
         )
-      ];
+      ]);
     }
     return Scaffold(
         appBar: AppBar(
           title: Text(widget.title),
         ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: body,
-          ),
-        ));
+        body: Center(child: body));
   }
 }
