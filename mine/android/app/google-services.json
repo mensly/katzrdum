@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "39223651450",
+    "project_id": "katzrdum",
+    "storage_bucket": "katzrdum.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:39223651450:android:66c18e20337cc6ed5d5fc3",
+        "android_client_info": {
+          "package_name": "cat.balrog.katzrdum.mine"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "39223651450-5no47ufuacjeatvb4n1nrj3d744sl5rm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbN5bOWgLUl_EvZZIuXrOoJD1tF-GigpU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "39223651450-5no47ufuacjeatvb4n1nrj3d744sl5rm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -39,8 +39,8 @@ class _ConfigPageState extends State<ConfigPage> {
   }
 
   void _runServer() async {
-    final server = await ServerSocket.bind(InternetAddress.anyIPv4, _portTcp);
-    server.listen((client) => _handleConnection(client));
+    _server = await ServerSocket.bind(InternetAddress.anyIPv4, _portTcp);
+    _server.listen((client) => _handleConnection(client));
     _broadcast();
   }
 
