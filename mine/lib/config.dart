@@ -144,7 +144,7 @@ class _ConfigPageState extends State<ConfigPage> {
           : 'S\'està carregant la configuració\nmitjançant un sòcol segur…';
       body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Image.asset('assets/balrog_wink.png', width: 320, height: 320),
-        Center(child: Text(loadingText)),
+        Center(child: Text(loadingText, textAlign: TextAlign.center)),
         const Padding(
           padding: EdgeInsets.all(64.0),
           child: CircularProgressIndicator(),

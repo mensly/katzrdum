@@ -118,7 +118,10 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                     Socket(remoteHost, PORT_TCP).use { socket ->
                         tcpSocket = socket
                         Log.d(TAG, "TCP Socket connected: $socket")
-                        socket.getOutputStream().writer().write(config)
+                        socket.getOutputStream().apply {
+                            write(config.encodeToByteArray())
+                            flush()
+                        }
                         Log.d(TAG, "Config sent")
                         socket.getInputStream().bufferedReader().forEachLine {
                             // TODO: Read in config values
