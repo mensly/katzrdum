@@ -87,6 +87,7 @@ class _ConfigPageState extends State<ConfigPage> {
         });
         try {
           // TODO: Properly parse different fields
+          // netcat
           // Sample data: {"fields":[{"name":"foo"},{"name":"bar"}]}
           final fields = <String>[];
           for (final field in jsonDecode(message)['fields']) {
@@ -127,7 +128,10 @@ class _ConfigPageState extends State<ConfigPage> {
             child: Text(
                 'To securely communicate with your connected device, we need to '
                 'do things a website isn\'t allowed to do, please install '
-                'Katzrdum Mine on your Android or iOS device')),
+                'Katzrdum Mine on your Android or iOS device',
+              textAlign: TextAlign.center,
+            )
+        ),
       ]);
     } else if (client != null && config != null) {
       // Show config UI
@@ -136,7 +140,7 @@ class _ConfigPageState extends State<ConfigPage> {
           itemBuilder: (context, index) => MaterialButton(
               child: Text(config[index]),
               onPressed: () {
-                client.writeln(config[index]);
+                client.writeln('${config[index]}:${config[index]}');
               }));
     } else {
       final loadingText = client == null

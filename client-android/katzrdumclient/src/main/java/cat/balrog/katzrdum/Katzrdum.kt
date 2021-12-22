@@ -40,6 +40,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private const val PORT_TCP = 24990
         private const val BUFFER_SIZE = 1024 // TODO: Set to actual size of public key datum, probably a lot smaller!
         private const val UDP_TIMEOUT = 500
+        private const val DELIMITER = ':'
     }
 
     constructor(vararg fields: ConfigField<out Any>): this(fields.toList())
@@ -55,6 +56,10 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             super.onResume(owner)
             handledKeys.clear()
             startUdpListener()
+            // netcat -l 24990
+//            remoteHost = InetAddress.getByName("192.168.20.10")
+//            remotePublicKey = "MOCK"
+//            connectToTcp()
         }
 
         override fun onPause(owner: LifecycleOwner) {
@@ -66,6 +71,12 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         override fun onDestroy(owner: LifecycleOwner) {
             super.onDestroy(owner)
             owner.lifecycle.removeObserver(this)
+        }
+
+        private fun runOnMain(block: suspend ()->Unit) {
+            activity.get()?.lifecycle?.coroutineScope?.launch {
+                block()
+            }
         }
 
         private fun startUdpListener() {
@@ -90,10 +101,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                     if (message != null && message !in handledKeys && remotePublicKey != message) {
                         remoteHost = packet.address
                         remotePublicKey = message
-                        val scope = activity.get()?.lifecycle?.coroutineScope
-                        scope?.launch {
-                            showPrompt()
-                        }
+                        runOnMain(this::showPrompt)
                     }
                 }
             }
@@ -123,9 +131,20 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                             flush()
                         }
                         Log.d(TAG, "Config sent")
-                        socket.getInputStream().bufferedReader().forEachLine {
+                        socket.getInputStream().bufferedReader().forEachLine { data ->
                             // TODO: Read in config values
-                            Log.d(TAG, "Received TCP: $it")
+                            Log.d(TAG, "Received TCP: $data")
+                            // TODO: Decrypt cypher text
+                            val dataIndex = data.indexOf(DELIMITER) + 1
+                            if (dataIndex <= 0) return@forEachLine
+                            val fieldName = data.substring(0, dataIndex - 1)
+                            val field = fields.firstOrNull { it.name == fieldName }
+                                ?: return@forEachLine
+                            val rawValue = if (dataIndex == data.length) "" else data.substring(dataIndex)
+                            val value = field.parse(rawValue)
+                            runOnMain {
+                                postConfiguration(fieldName, value)
+                            }
                         }
                     }
                 } catch (e: SocketException) {
@@ -185,24 +204,29 @@ sealed class ConfigField<T>(val name: String) {
     abstract val type: String
     abstract val value: T
     var label = name
+    abstract fun parse(data: String): T
 }
 
 class StringField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
     override val type = "String"
     override var value = default
+    override fun parse(data: String) = if (data.isEmpty()) default else data
 }
 
 class PasswordField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
     override val type = "Password"
     override var value = default
+    override fun parse(data: String) = if (data.isEmpty()) default else data
 }
 
 class IntegerField(name: String, @Keep val default: Long = 0): ConfigField<Long>(name) {
     override val type = "Integer"
     override var value = default
+    override fun parse(data: String) = if (data.isEmpty()) default else data.toLong()
 }
 
 class DataField(name: String, @Keep val default: ByteArray = byteArrayOf()): ConfigField<ByteArray>(name) {
     override val type = "Data"
     override var value = default
+    override fun parse(data: String) = TODO("base64 decode")
 }

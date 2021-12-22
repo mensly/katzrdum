@@ -8,7 +8,7 @@ Under construction: [KATZRDUM](https://mine.balrog.cat)
 ## Apps
 All code will be released on GitHub and licensed to allow commercial derivative works except where existing licenses make this impractical (eg COVID check-ins uwill need to use sensitive government APIs and RetroArch is GPL)
 
-Repositories for work done as subprojects of katzrum will be linked in this list as they become available.
+Repositories for work done as subprojects of Katzrdum will be linked in this list as they become available.
 
 * [x] [vicheckin](https://github.com/mensly/viccheckin) - COVID QR code check-in for Victoria
 * [x] [WatchMe](https://github.com/mensly/watchmeforglass) - Simple video playing demonstration
