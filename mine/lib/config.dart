@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:udp/udp.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ConfigPage extends StatefulWidget {
   const ConfigPage({Key? key, required this.title}) : super(key: key);
@@ -115,6 +116,11 @@ class _ConfigPageState extends State<ConfigPage> {
     );
   }
 
+  void _downloadApk() async {
+    // TODO: Get latest version from firebase
+    await launch("https://mine.balrog.cat/app-release.apk");
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget body;
@@ -132,6 +138,7 @@ class _ConfigPageState extends State<ConfigPage> {
               textAlign: TextAlign.center,
             )
         ),
+        MaterialButton(onPressed: () => _downloadApk(), child: const Text("Download APK"))
       ]);
     } else if (client != null && config != null) {
       // Show config UI
