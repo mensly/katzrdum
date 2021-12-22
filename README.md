@@ -1,5 +1,5 @@
-![Balrog](http://balrog.cat/images/balrog_wink.png)
-# katzrdum for Google Glass
+![Katzrdum](logo.png)
+# Katzrdum for Google Glass
 Software to manage publishing and configuring open source software designed for Google Glass.
 This project is still at the concept stage and may evaporate into vapourware, but let's hope not!
 
