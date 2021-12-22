@@ -18,10 +18,12 @@ class MainActivity : AppCompatActivity(), KoinComponent {
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val textView = TextView(this)
-        textView.textAlignment = TextView.TEXT_ALIGNMENT_CENTER
-        textView.gravity = Gravity.CENTER
-        textView.text = getString(R.string.text)
+        val textView = TextView(this).apply {
+            textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+            gravity = Gravity.CENTER
+            text = getString(R.string.text)
+            keepScreenOn = true
+        }
         setContentView(textView)
         val config = katzdumClient.listen(this).asLiveData()
         config.observe(this) {

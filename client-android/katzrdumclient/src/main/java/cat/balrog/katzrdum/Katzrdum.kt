@@ -8,7 +8,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.coroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -17,6 +16,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import kotlin.concurrent.thread
 
 /**
@@ -35,14 +35,13 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private const val PORT_UDP = 21055
         private const val PORT_TCP = 24990
         private const val BUFFER_SIZE = 1024 // TODO: Set to actual size of public key datum, probably a lot smaller!
+        private const val UDP_TIMEOUT = 500
     }
 
     constructor(vararg fields: ConfigField<out Any>): this(fields.toList())
 
     private inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
         private val activity = WeakReference(activity)
-        private var code = "MOCK"
-        private var udpThread: Thread? = null
         private var udpSocket: DatagramSocket? = null
         private var remoteHost: InetAddress? = null
         private var remotePublicKey: String? = null
@@ -63,17 +62,22 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         }
 
         private fun startUdpListener() {
-            udpThread = thread {
+            thread {
                 val socket = DatagramSocket(PORT_UDP)
                 val buffer = ByteArray(BUFFER_SIZE)
                 val packet = DatagramPacket(buffer, BUFFER_SIZE)
                 udpSocket = socket
                 while (!socket.isClosed) {
                     Log.d("Katz", System.currentTimeMillis().toString())
-                    socket.receive(packet)
-                    val message = String(buffer, 0, packet.length)
-                    Log.d("Katz", "Received: $message")
-                    if (message !in handledKeys && remotePublicKey != message) {
+                    socket.soTimeout = UDP_TIMEOUT
+                    val message = try {
+                        socket.receive(packet)
+                        String(buffer, 0, packet.length)
+                    } catch (timeout: SocketTimeoutException) {
+                        null
+                    }
+                    Log.d("Katz", "Received UDP: $message from $remoteHost")
+                    if (message != null && message !in handledKeys && remotePublicKey != message) {
                         remoteHost = packet.address
                         remotePublicKey = message
                         val scope = activity.get()?.lifecycle?.coroutineScope
@@ -95,16 +99,20 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             val remoteHost = this.remoteHost ?: return
             val remotePublicKey = this.remotePublicKey ?: return
             // TODO: generate key pair and send public key
-            val scope = activity.get()?.lifecycle?.coroutineScope ?: return
-            scope.launch(Dispatchers.IO) {
+            val localPrivateKey = "clientmock]"
+            val localPublicKey = "clientmock"
+            thread {
                 val config = mapOf(
-                    KEY_PUBLIC_KEY to "clientmock",
+                    KEY_PUBLIC_KEY to localPublicKey,
                     KEY_FIELDS to fields
                 ).toString() // TODO: Encode with JSON via kotlinx.serialization
-                val socket = Socket(remoteHost, PORT_TCP)
-                socket.getOutputStream().bufferedWriter().use { it.write(config) }
-                socket.getInputStream().bufferedReader().use {
-                    // TODO: Read in config values
+                Socket(remoteHost, PORT_TCP).use { socket ->
+                    Log.d("Katz", "TCP Socket connected: $socket")
+                    socket.getOutputStream().bufferedWriter().write(config)
+                    socket.getInputStream().bufferedReader().lines().forEach {
+                        // TODO: Read in config values
+                        Log.d("Katz", "Received TCP: $it")
+                    }
                 }
                 // TODO: handle errors, restart and stuff
             }
@@ -112,6 +120,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
         private fun showPrompt() {
             val activity = this.activity.get() ?: return
+            val code = remotePublicKey?.substring(0, 4) ?: return
             AlertDialog.Builder(activity)
                 .setMessage(configPrompt.replace(CODE_PLACEHOLDER, code))
                 .setPositiveButton(android.R.string.ok, this)
