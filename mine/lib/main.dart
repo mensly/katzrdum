@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:katzrdum/config.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -39,6 +41,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  static const _githubUrl = "https://github.com/mensly/katzrdum";
   final Future<FirebaseApp> _initialization = Firebase.initializeApp();
   DocumentReference<Map<String, dynamic>>? _docRef;
   Stream<int>? _counter;
@@ -119,6 +122,10 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  void _openGitHub() async {
+    await launch(_githubUrl);
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
@@ -161,6 +168,15 @@ class _MyHomePageState extends State<MyHomePage> {
             return Scaffold(
               appBar: AppBar(
                 title: Text(widget.title),
+                actions: [
+                  Padding(
+                      padding: const EdgeInsets.only(right: 20.0),
+                      child: TextButton.icon(
+                        onPressed: () => _openGitHub(),
+                        label: const Text("FORK ME", style: TextStyle(color: Colors.white)),
+                        icon: const Icon(FontAwesomeIcons.githubAlt, size: 26.0, color: Colors.white),
+                      )),
+                ],
               ),
               body: Center(
                 child: Column(
