@@ -11,13 +11,16 @@ import androidx.lifecycle.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import java.io.Closeable
 import java.lang.ref.WeakReference
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.Socket
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import kotlin.concurrent.thread
+import kotlin.reflect.KProperty
 
 /**
  * Connect to a Katzrdum configuration instance on the local network.
@@ -30,6 +33,7 @@ import kotlin.concurrent.thread
 class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     companion object {
         const val CODE_PLACEHOLDER = "\${__CODE__}"
+        private const val TAG = "Katz"
         private const val KEY_PUBLIC_KEY = "key"
         private const val KEY_FIELDS = "fields"
         private const val PORT_UDP = 21055
@@ -40,11 +44,12 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
     constructor(vararg fields: ConfigField<out Any>): this(fields.toList())
 
-    private inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
+    inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
         private val activity = WeakReference(activity)
         private var udpSocket: DatagramSocket? = null
         private var remoteHost: InetAddress? = null
         private var remotePublicKey: String? = null
+        private var tcpSocket by ClosingDelegate<Socket>()
 
         override fun onResume(owner: LifecycleOwner) {
             super.onResume(owner)
@@ -54,6 +59,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         override fun onPause(owner: LifecycleOwner) {
             super.onPause(owner)
             stopUdpListener()
+            tcpSocket = null
         }
 
         override fun onDestroy(owner: LifecycleOwner) {
@@ -68,7 +74,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                 val packet = DatagramPacket(buffer, BUFFER_SIZE)
                 udpSocket = socket
                 while (!socket.isClosed) {
-                    Log.d("Katz", System.currentTimeMillis().toString())
+//                    Log.d(TAG, System.currentTimeMillis().toString())
                     socket.soTimeout = UDP_TIMEOUT
                     val message = try {
                         socket.receive(packet)
@@ -76,7 +82,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                     } catch (timeout: SocketTimeoutException) {
                         null
                     }
-                    Log.d("Katz", "Received UDP: $message from $remoteHost")
+                    message?.let { Log.d(TAG, "Received UDP: $it from $remoteHost") }
                     if (message != null && message !in handledKeys && remotePublicKey != message) {
                         remoteHost = packet.address
                         remotePublicKey = message
@@ -99,21 +105,30 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             val remoteHost = this.remoteHost ?: return
             val remotePublicKey = this.remotePublicKey ?: return
             // TODO: generate key pair and send public key
-            val localPrivateKey = "clientmock]"
+            val localPrivateKey = "clientmock"
             val localPublicKey = "clientmock"
             thread {
-                val config = mapOf(
-                    KEY_PUBLIC_KEY to localPublicKey,
-                    KEY_FIELDS to fields
-                ).toString() // TODO: Encode with JSON via kotlinx.serialization
-                Socket(remoteHost, PORT_TCP).use { socket ->
-                    Log.d("Katz", "TCP Socket connected: $socket")
-                    socket.getOutputStream().bufferedWriter().write(config)
-                    socket.getInputStream().bufferedReader().lines().forEach {
-                        // TODO: Read in config values
-                        Log.d("Katz", "Received TCP: $it")
+//                val config = mapOf(
+//                    KEY_PUBLIC_KEY to localPublicKey,
+//                    KEY_FIELDS to fields
+//                ).toString() // TODO: Encode with JSON via kotlinx.serialization
+                val config = "{\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
+                Log.d(TAG, "config; $config")
+                try {
+                    Socket(remoteHost, PORT_TCP).use { socket ->
+                        tcpSocket = socket
+                        Log.d(TAG, "TCP Socket connected: $socket")
+                        socket.getOutputStream().writer().write(config)
+                        Log.d(TAG, "Config sent")
+                        socket.getInputStream().bufferedReader().forEachLine {
+                            // TODO: Read in config values
+                            Log.d(TAG, "Received TCP: $it")
+                        }
                     }
+                } catch (e: SocketException) {
+                    // TODO
                 }
+                Log.d(TAG, "Socket closed")
                 // TODO: handle errors, restart and stuff
             }
         }
@@ -152,27 +167,38 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     }
 }
 
-sealed class ConfigField<T>(val key: String) {
-    abstract val type: String
-    abstract val value: T
+class ClosingDelegate<T: Closeable> {
+    private var value: T? = null
+    operator fun getValue(obj: Any, property: KProperty<*>) = value
+
+    operator fun setValue(obj: Any, property: KProperty<*>, value: T?) {
+        this.value?.close()
+        this.value = value
+    }
 }
 
-class StringField(key: String, @Keep val default: String = ""): ConfigField<String>(key) {
+sealed class ConfigField<T>(val name: String) {
+    abstract val type: String
+    abstract val value: T
+    var label = name
+}
+
+class StringField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
     override val type = "String"
     override var value = default
 }
 
-class PasswordField(key: String, @Keep val default: String = ""): ConfigField<String>(key) {
+class PasswordField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
     override val type = "Password"
     override var value = default
 }
 
-class IntegerField(key: String, @Keep val default: Long = 0): ConfigField<Long>(key) {
+class IntegerField(name: String, @Keep val default: Long = 0): ConfigField<Long>(name) {
     override val type = "Integer"
     override var value = default
 }
 
-class DataField(key: String, @Keep val default: ByteArray = byteArrayOf()): ConfigField<ByteArray>(key) {
+class DataField(name: String, @Keep val default: ByteArray = byteArrayOf()): ConfigField<ByteArray>(name) {
     override val type = "Data"
     override var value = default
 }

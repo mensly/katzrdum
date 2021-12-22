@@ -78,18 +78,30 @@ class _ConfigPageState extends State<ConfigPage> {
     _broadcasting = false;
     client.listen(
       (Uint8List data) async {
-        final message = String.fromCharCodes(data);
-        // TODO: Properly parse different fields
-        // Sample data: {"fields":[{"name":"foo"},{"name":"bar"}]}
-        final fields = <String>[];
-        for (final field in jsonDecode(message)['fields']) {
-          final name = field['name'];
-          fields.add(name);
-        }
         setState(() {
-          _config = fields;
+          _config = [data.toString()];
         });
-        // TODO: Handle json parsing errors etc
+        final message = String.fromCharCodes(data);
+        setState(() {
+          _config = [message];
+        });
+        try {
+          // TODO: Properly parse different fields
+          // Sample data: {"fields":[{"name":"foo"},{"name":"bar"}]}
+          final fields = <String>[];
+          for (final field in jsonDecode(message)['fields']) {
+            final name = field['name'];
+            fields.add(name);
+          }
+          setState(() {
+            _config = fields;
+          });
+        } catch (_) {
+          // TODO: Handle json parsing errors etc
+          setState(() {
+            _config = [message];
+          });
+        }
       },
       onError: (error) {
         _disconnect();
@@ -129,7 +141,7 @@ class _ConfigPageState extends State<ConfigPage> {
     } else {
       final loadingText = client == null
           ? 'Cercant Katzrdum a la xarxa local d\'ordinadors…'
-          : 'S\'està carregant la configuració mitjançant un sòcol segur…';
+          : 'S\'està carregant la configuració\nmitjançant un sòcol segur…';
       body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Image.asset('assets/balrog_wink.png', width: 320, height: 320),
         Center(child: Text(loadingText)),
