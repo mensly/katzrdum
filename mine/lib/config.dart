@@ -132,23 +132,31 @@ class _ConfigPageState extends State<ConfigPage> {
         const SizedBox(
             width: 400,
             child: Text(
-                'To securely communicate with your connected device, we need to '
-                'do things a website isn\'t allowed to do, please install '
-                'Katzrdum Mine on your Android or iOS device',
+              'To securely communicate with your connected device, we need to '
+              'do things a website isn\'t allowed to do, please install '
+              'Katzrdum Mine on your Android or iOS device',
               textAlign: TextAlign.center,
-            )
-        ),
-        MaterialButton(onPressed: () => _downloadApk(), child: const Text("Download APK"))
+            )),
+        MaterialButton(
+            onPressed: () => _downloadApk(), child: const Text("Download APK"))
       ]);
     } else if (client != null && config != null) {
       // Show config UI
       body = ListView.builder(
-          itemCount: config.length,
-          itemBuilder: (context, index) => MaterialButton(
-              child: Text(config[index]),
-              onPressed: () {
-                client.writeln('${config[index]}:${config[index]}');
-              }));
+          itemCount: config.length + 2,
+          itemBuilder: (context, index) {
+            switch (index) {
+              case 0: return const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text('Configure',
+                  textAlign: TextAlign.center,
+                  textScaleFactor: 1.5),
+              );
+              case 1: return const DividerWidget();
+              default: return StringConfigWidget(client: client, name: config[index - 2]);
+            }
+          }
+      );
     } else {
       final loadingText = client == null
           ? 'Cercant Katzrdum a la xarxa local d\'ordinadors…'
@@ -167,5 +175,61 @@ class _ConfigPageState extends State<ConfigPage> {
           title: Text(widget.title),
         ),
         body: Center(child: body));
+  }
+}
+
+// TODO: Move to separate subpackage
+class StringConfigWidget extends StatefulWidget {
+  const StringConfigWidget({Key? key, required this.client, required this.name})
+      : super(key: key);
+
+  // TODO: Use ConfigField class
+  final String name;
+  final Socket client;
+
+  void sendValue(String value) {
+    client.writeln('$name:$value');
+  }
+
+  @override
+  State<StringConfigWidget> createState() => _StringConfigWidgetState();
+}
+
+class _StringConfigWidgetState extends State<StringConfigWidget> {
+  final _valueController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.name;
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Text(label),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+              controller: _valueController,
+              onSubmitted: (text) => widget.sendValue(text)),
+        ),
+        MaterialButton(
+          onPressed: () => widget.sendValue(_valueController.text),
+          color: Theme.of(context).buttonTheme.colorScheme!.background,
+          child: const Text("Send"),
+        ),
+        const DividerWidget(),
+      ]),
+    );
+  }
+}
+
+class DividerWidget extends StatelessWidget {
+  const DividerWidget({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+        height: 2.0,
+        color: Theme.of(context).colorScheme.secondary
+    );
   }
 }

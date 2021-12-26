@@ -2,6 +2,7 @@ package cat.balrog.katzrdum.sample.sample
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.Gravity
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -22,6 +23,7 @@ class MainActivity : AppCompatActivity(), KoinComponent {
             textAlignment = TextView.TEXT_ALIGNMENT_CENTER
             gravity = Gravity.CENTER
             text = getString(R.string.text)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
             keepScreenOn = true
         }
         setContentView(textView)
