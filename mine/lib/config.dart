@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:basic_utils/basic_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:katzrdum/crypto.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:udp/udp.dart';
@@ -22,8 +24,11 @@ class _ConfigPageState extends State<ConfigPage> {
   late ServerSocket _server;
   Socket? _client;
   var _broadcasting = false;
-  String? _privateKey;
-  List<String>? _config; // TODO: Load as JSON to build UI
+  String? _code;
+  Object? _privateKey;
+  // TODO: Model class for config that includes fields and key
+  List<String>? _config;
+  Object? _clientKey;
 
   @override
   void initState() {
@@ -48,8 +53,10 @@ class _ConfigPageState extends State<ConfigPage> {
   void _broadcast() async {
     var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
     // TODO: Generate a key pair
-    const publicKey = "MOCK";
-    _privateKey = "MOCK";
+    final keyPair = CryptoUtils.generateRSAKeyPair(keySize: 4096);
+    final publicKey = encodePublicKey(keyPair.publicKey);
+    _code = publicKey.substring(0, 4).toUpperCase();
+    _privateKey = keyPair.privateKey;
     _broadcasting = true;
     while (_broadcasting) {
       await sender.send(
@@ -79,24 +86,21 @@ class _ConfigPageState extends State<ConfigPage> {
     _broadcasting = false;
     client.listen(
       (Uint8List data) async {
-        setState(() {
-          _config = [data.toString()];
-        });
         final message = String.fromCharCodes(data);
-        setState(() {
-          _config = [message];
-        });
         try {
           // TODO: Properly parse different fields
           // netcat
-          // Sample data: {"fields":[{"name":"foo"},{"name":"bar"}]}
+          // Sample data: {"fields":[{"name":"foo"},{"name":"bar"},"key":"AAAAB3NzaC1yc2EAAAADAQABAAABgQCzivj8BMOT9Uq3SqC+2DxAWlGN4QslLq+NA0yY8467CKJWgKb1uY+28zLn4FbwHAvTWR5TyDjPQFJUeiQckkhFSf06RoWzJFNoHB6AKmMLTWTlvAukHNYXNKTpbT7u1QymAQeaWP1d7c8BumTBbbjT/lmfFQSQRyKfgGDosA5Xbt2QKCZiL7gX0ItPM4Z1X40O4ieKLTsXb/PrzE02wZQng09Kk2D8t66mPf4VCOmcd73qBh3nLACoN2wESOcMrsQmBzoMJSzP/YbGI26BbJleeysQ6WTovlfPGaJpe+vlknN7gcjzXp3gRH53AXU/QvPD8xCxCdW+r4mWjCMa/MbCPoWh0twJP3w1PjnWvO2XmBfOFSJSXpea23l7vO+6KikcF5y/02dnpjk7c26irrmjdaRXE0A8zyozh+vWgPFi5xB+fRiX6V0kd8ZIHSH/qYcUb5yknL1IIZWURN5pnl4M7kVSY1Ob4ekjQ+WJ0TvM+9a6H304Tvo8u5/GcYDZ3qE="]}
           final fields = <String>[];
-          for (final field in jsonDecode(message)['fields']) {
+          final decoded = jsonDecode(decrypt(message, _privateKey));
+          final clientKey = decoded['key'];
+          for (final field in decoded['fields']) {
             final name = field['name'];
             fields.add(name);
           }
           setState(() {
             _config = fields;
+            _clientKey = clientKey;
           });
         } catch (_) {
           // TODO: Handle json parsing errors etc
@@ -153,13 +157,18 @@ class _ConfigPageState extends State<ConfigPage> {
                   textScaleFactor: 1.5),
               );
               case 1: return const DividerWidget();
-              default: return StringConfigWidget(client: client, name: config[index - 2]);
+              default: return StringConfigWidget(
+                  client: client,
+                  clientKey: _clientKey,
+                  name: config[index - 2]);
             }
           }
       );
     } else {
+      final code = _code;
+      final codeText = code == null ? '' : '\nCODE: $code';
       final loadingText = client == null
-          ? 'Cercant Katzrdum a la xarxa local d\'ordinadors…'
+          ? 'Cercant Katzrdum a la xarxa local d\'ordinadors…' + codeText
           : 'S\'està carregant la configuració\nmitjançant un sòcol segur…';
       body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Image.asset('assets/balrog_wink.png', width: 320, height: 320),
@@ -180,15 +189,16 @@ class _ConfigPageState extends State<ConfigPage> {
 
 // TODO: Move to separate subpackage
 class StringConfigWidget extends StatefulWidget {
-  const StringConfigWidget({Key? key, required this.client, required this.name})
+  const StringConfigWidget({Key? key, required this.client, required this.name, required this.clientKey})
       : super(key: key);
 
   // TODO: Use ConfigField class
   final String name;
   final Socket client;
+  final Object? clientKey;
 
   void sendValue(String value) {
-    client.writeln('$name:$value');
+    client.writeln(encrypt('$name:$value', clientKey));
   }
 
   @override
@@ -214,7 +224,7 @@ class _StringConfigWidgetState extends State<StringConfigWidget> {
         MaterialButton(
           onPressed: () => widget.sendValue(_valueController.text),
           color: Theme.of(context).buttonTheme.colorScheme!.background,
-          child: const Text("Send"),
+          child: const Text('Send'),
         ),
         const DividerWidget(),
       ]),

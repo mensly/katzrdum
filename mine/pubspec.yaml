@@ -19,6 +19,8 @@ dependencies:
   udp: ^4.0.1
   url_launcher: ^6.0.17
   font_awesome_flutter: ^9.2.0
+  pointycastle: ^3.4.0
+  basic_utils: ^3.9.4
 
 dev_dependencies:
   flutter_test:

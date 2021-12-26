@@ -19,6 +19,9 @@ import java.net.InetAddress
 import java.net.Socket
 import java.net.SocketException
 import java.net.SocketTimeoutException
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.util.Base64
 import kotlin.concurrent.thread
 import kotlin.reflect.KProperty
 
@@ -112,15 +115,18 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private fun connectToTcp() {
             val remoteHost = this.remoteHost ?: return
             val remotePublicKey = this.remotePublicKey ?: return
-            // TODO: generate key pair and send public key
-            val localPrivateKey = "clientmock"
-            val localPublicKey = "clientmock"
+            val keyGen: KeyPairGenerator = KeyPairGenerator.getInstance("RSA")
+            keyGen.initialize(4096)
+            val pair: KeyPair = keyGen.generateKeyPair()
+            val encodedPublicKey: ByteArray = pair.public.encoded
+            val localPrivateKey = pair.private
+            val localPublicKey = Base64.getEncoder().encodeToString(encodedPublicKey)
             thread {
 //                val config = mapOf(
 //                    KEY_PUBLIC_KEY to localPublicKey,
 //                    KEY_FIELDS to fields
 //                ).toString() // TODO: Encode with JSON via kotlinx.serialization
-                val config = "{\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
+                val config = "{\"key\":\"$localPublicKey\",\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
                 Log.d(TAG, "config; $config")
                 try {
                     Socket(remoteHost, PORT_TCP).use { socket ->
