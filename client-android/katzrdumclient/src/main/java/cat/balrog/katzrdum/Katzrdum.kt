@@ -19,11 +19,18 @@ import java.net.InetAddress
 import java.net.Socket
 import java.net.SocketException
 import java.net.SocketTimeoutException
+import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.security.PrivateKey
+import java.security.PublicKey
+import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
+import javax.crypto.Cipher
 import kotlin.concurrent.thread
+import kotlin.math.min
 import kotlin.reflect.KProperty
+
 
 /**
  * Connect to a Katzrdum configuration instance on the local network.
@@ -44,6 +51,29 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private const val BUFFER_SIZE = 1024 // TODO: Set to actual size of public key datum, probably a lot smaller!
         private const val UDP_TIMEOUT = 500
         private const val DELIMITER = ':'
+        private const val BLOCK_SIZE = 512
+
+        private fun getPublicKey(base64PublicKey: String): PublicKey {
+            val joinedKey = base64PublicKey.split("\n").joinToString(separator = "")
+            val keySpec =
+                X509EncodedKeySpec(Base64.getDecoder().decode(joinedKey.toByteArray()))
+            val keyFactory: KeyFactory = KeyFactory.getInstance("RSA")
+            return keyFactory.generatePublic(keySpec)
+        }
+
+        private fun encrypt(message: String, publicKey: String): ByteArray {
+            val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, getPublicKey(publicKey))
+            message.toByteArray(Charsets.UTF_8).subarrays(BLOCK_SIZE).forEach(cipher::update)
+            return cipher.doFinal()
+        }
+
+        private fun decrypt(message: String, privateKey: PrivateKey): String {
+            val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+            cipher.init(Cipher.DECRYPT_MODE, privateKey)
+            message.toByteArray(Charsets.UTF_8).subarrays(BLOCK_SIZE).forEach(cipher::update)
+            return String(cipher.doFinal(), Charsets.UTF_8)
+        }
     }
 
     constructor(vararg fields: ConfigField<out Any>): this(fields.toList())
@@ -100,8 +130,8 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                         Log.e(TAG, "Error with UDP socket")
                         return@thread // end thread
                     }
-                    message?.let { Log.d(TAG, "Received UDP: $it from ${packet.address}") }
                     if (message != null && message !in handledKeys && remotePublicKey != message) {
+                        Log.d(TAG, "Received UDP: $message from ${packet.address}")
                         remoteHost = packet.address
                         remotePublicKey = message
                         runOnMain(this::showPrompt)
@@ -115,32 +145,31 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private fun connectToTcp() {
             val remoteHost = this.remoteHost ?: return
             val remotePublicKey = this.remotePublicKey ?: return
-            val keyGen: KeyPairGenerator = KeyPairGenerator.getInstance("RSA")
-            keyGen.initialize(4096)
-            val pair: KeyPair = keyGen.generateKeyPair()
-            val encodedPublicKey: ByteArray = pair.public.encoded
-            val localPrivateKey = pair.private
-            val localPublicKey = Base64.getEncoder().encodeToString(encodedPublicKey)
             thread {
+                val keyGen: KeyPairGenerator = KeyPairGenerator.getInstance("RSA")
+                keyGen.initialize(4096)
+                val pair: KeyPair = keyGen.generateKeyPair()
+                val localPublicKey = Base64.getEncoder().encodeToString(pair.public.encoded)
 //                val config = mapOf(
 //                    KEY_PUBLIC_KEY to localPublicKey,
 //                    KEY_FIELDS to fields
 //                ).toString() // TODO: Encode with JSON via kotlinx.serialization
                 val config = "{\"key\":\"$localPublicKey\",\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
-                Log.d(TAG, "config; $config")
+                Log.d(TAG, "config: $config")
                 try {
                     Socket(remoteHost, PORT_TCP).use { socket ->
                         tcpSocket = socket
                         Log.d(TAG, "TCP Socket connected: $socket")
                         socket.getOutputStream().apply {
-                            write(config.encodeToByteArray())
+                            write(encrypt(config, remotePublicKey))
                             flush()
                         }
                         Log.d(TAG, "Config sent")
-                        socket.getInputStream().bufferedReader().forEachLine { data ->
+                        socket.getInputStream().bufferedReader().forEachLine { encryptedData ->
                             // TODO: Read in config values
-                            Log.d(TAG, "Received TCP: $data")
-                            // TODO: Decrypt cypher text
+                            Log.d(TAG, "Received TCP: $encryptedData")
+                            val data = decrypt(encryptedData, pair.private)
+                            Log.d(TAG, "Received data: $data")
                             val dataIndex = data.indexOf(DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine
                             val fieldName = data.substring(0, dataIndex - 1)
@@ -163,7 +192,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
         private fun showPrompt() {
             val activity = this.activity.get() ?: return
-            val code = remotePublicKey?.substring(0, 4) ?: return
+            val code = remotePublicKey?.substring(0, 4)?.uppercase() ?: return
             AlertDialog.Builder(activity)
                 .setMessage(configPrompt.replace(CODE_PLACEHOLDER, code))
                 .setPositiveButton(android.R.string.ok, this)
@@ -195,12 +224,23 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     }
 }
 
+fun ByteArray.subarrays(maxSize: Int): Iterable<ByteArray> {
+    val subsequenceCount = this.size / maxSize
+    val subarrays = mutableListOf<ByteArray>()
+    for (i in 0 until subsequenceCount - 1) {
+        val startIndex = i * maxSize
+        val endIndex = min(size, (i + 1) * maxSize) - 1
+        subarrays += slice(startIndex until endIndex).toByteArray()
+    }
+    return subarrays
+}
+
 class ClosingDelegate<T: Closeable> {
     private var value: T? = null
     operator fun getValue(obj: Any, property: KProperty<*>) = value
 
     operator fun setValue(obj: Any, property: KProperty<*>, value: T?) {
-        this.value?.let { Log.d("Katz", "Closing $it") }
+//        this.value?.let { Log.d("Katz", "Closing $it") }
         this.value?.close()
         this.value = value
     }

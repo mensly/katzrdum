@@ -55,7 +55,9 @@ class _ConfigPageState extends State<ConfigPage> {
     // TODO: Generate a key pair
     final keyPair = CryptoUtils.generateRSAKeyPair(keySize: 4096);
     final publicKey = encodePublicKey(keyPair.publicKey);
-    _code = publicKey.substring(0, 4).toUpperCase();
+    setState(() {
+      _code = publicKey.substring(0, 4).toUpperCase();
+    });
     _privateKey = keyPair.privateKey;
     _broadcasting = true;
     while (_broadcasting) {
@@ -93,19 +95,19 @@ class _ConfigPageState extends State<ConfigPage> {
           // Sample data: {"fields":[{"name":"foo"},{"name":"bar"},"key":"AAAAB3NzaC1yc2EAAAADAQABAAABgQCzivj8BMOT9Uq3SqC+2DxAWlGN4QslLq+NA0yY8467CKJWgKb1uY+28zLn4FbwHAvTWR5TyDjPQFJUeiQckkhFSf06RoWzJFNoHB6AKmMLTWTlvAukHNYXNKTpbT7u1QymAQeaWP1d7c8BumTBbbjT/lmfFQSQRyKfgGDosA5Xbt2QKCZiL7gX0ItPM4Z1X40O4ieKLTsXb/PrzE02wZQng09Kk2D8t66mPf4VCOmcd73qBh3nLACoN2wESOcMrsQmBzoMJSzP/YbGI26BbJleeysQ6WTovlfPGaJpe+vlknN7gcjzXp3gRH53AXU/QvPD8xCxCdW+r4mWjCMa/MbCPoWh0twJP3w1PjnWvO2XmBfOFSJSXpea23l7vO+6KikcF5y/02dnpjk7c26irrmjdaRXE0A8zyozh+vWgPFi5xB+fRiX6V0kd8ZIHSH/qYcUb5yknL1IIZWURN5pnl4M7kVSY1Ob4ekjQ+WJ0TvM+9a6H304Tvo8u5/GcYDZ3qE="]}
           final fields = <String>[];
           final decoded = jsonDecode(decrypt(message, _privateKey));
-          final clientKey = decoded['key'];
+          final String clientKey = decoded['key'];
           for (final field in decoded['fields']) {
             final name = field['name'];
             fields.add(name);
           }
           setState(() {
-            _config = fields;
             _clientKey = clientKey;
+            _config = fields;
           });
         } catch (_) {
           // TODO: Handle json parsing errors etc
           setState(() {
-            _config = [message];
+            _config = ['Could not decode: ' + message];
           });
         }
       },
