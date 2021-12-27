@@ -46,7 +46,6 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     companion object {
         const val CODE_PLACEHOLDER = "\${__CODE__}"
         private const val TAG = "Katz"
-        private const val KEY_PUBLIC_KEY = "key"
         private const val KEY_FIELDS = "fields"
         private const val PORT_UDP = 21055
         private const val PORT_TCP = 24990
@@ -181,20 +180,13 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                 val config = "{\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
                 Log.d(TAG, "config: $config")
                 Log.d(TAG, "remotePublicKey: $remotePublicKey")
-//                val originalMessage = "Hello Brave New World"
-//                Log.d(TAG, originalMessage);
-//                Log.d(TAG, localPublicKey)
-//                val cipherMessage = String(encrypt(originalMessage, localPublicKey))
-//                Log.d(TAG, cipherMessage)
-//                val decodedMessage = decrypt(cipherMessage, keyPair.private)
-//                Log.d(TAG, decodedMessage)
 
                 try {
                     Socket(remoteHost, PORT_TCP).use { socket ->
                         tcpSocket = socket
                         Log.d(TAG, "TCP Socket connected: $socket")
                         socket.getOutputStream().apply {
-                            write(encrypt(config, remotePublicKey))
+                            write(encrypt(config, secretKey))
                             flush()
                         }
                         Log.d(TAG, "Config sent")

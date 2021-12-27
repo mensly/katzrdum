@@ -9,6 +9,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:udp/udp.dart';
 import 'package:url_launcher/url_launcher.dart';
+import "package:pointycastle/export.dart" show RSAPrivateKey;
 
 class ConfigPage extends StatefulWidget {
   const ConfigPage({Key? key, required this.title}) : super(key: key);
@@ -26,16 +27,15 @@ class _ConfigPageState extends State<ConfigPage> {
   Socket? _client;
   var _broadcasting = false;
   String? _code;
-  Object? _privateKey;
+  RSAPrivateKey? _privateKey;
   Uint8List? _secretKey;
   Uint8List? _iv;
-  // TODO: Model class for config that includes fields and key
+  // TODO: Model class for config that includes fields
   List<String>? _config;
 
   @override
   void initState() {
     super.initState();
-    // FIXME: Something is blocking the main thread
     _runServer();
   }
 
@@ -55,7 +55,7 @@ class _ConfigPageState extends State<ConfigPage> {
 
   void _broadcast() async {
     var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
-    final keyPair = CryptoUtils.generateRSAKeyPair(keySize: 4096);
+    final keyPair = await generateKeyPair();
     final publicKey = encodePublicKey(keyPair.publicKey);
 
     final code = calculateCode(publicKey);
@@ -81,8 +81,9 @@ class _ConfigPageState extends State<ConfigPage> {
   }
 
   void _handleConnection(Socket client) async {
+    final privateKey = _privateKey;
     final iv = _iv;
-    if (iv == null) {
+    if (privateKey == null || iv == null) {
       return; // No key generated
     }
     if (_client != null) {
@@ -99,7 +100,7 @@ class _ConfigPageState extends State<ConfigPage> {
       (Uint8List cipherData) async {
         var secretKey = _secretKey;
         if (secretKey == null) {
-          secretKey = decryptSecretKey(cipherData, _privateKey);
+          secretKey = decryptSecretKey(cipherData, privateKey);
           setState(() {
             _secretKey = secretKey;
           });
@@ -119,7 +120,8 @@ class _ConfigPageState extends State<ConfigPage> {
           setState(() {
             _config = fields;
           });
-        } catch (_) {
+        } catch (e) {
+          print('error receiving config: $e');
           // TODO: Handle json parsing errors etc
           setState(() {
             _config = ['Could not decode: ' + (message ?? String.fromCharCodes(cipherData))];
