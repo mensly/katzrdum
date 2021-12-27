@@ -23,6 +23,7 @@ class ConfigPage extends StatefulWidget {
 class _ConfigPageState extends State<ConfigPage> {
   static const _portUdp = 21055;
   static const _portTcp = 24990;
+  static final _newLine = utf8.encode("\n")[0];
   late ServerSocket _server;
   Socket? _client;
   var _broadcasting = false;
@@ -106,20 +107,14 @@ class _ConfigPageState extends State<ConfigPage> {
     _broadcasting = false;
     client.listen(
       (Uint8List cipherData) async {
-        var secretKey = _secretKey;
-        if (secretKey == null) {
-          print('cipherData: ${base64Encode(cipherData)}');
-          secretKey = decryptSecretKey(cipherData, privateKey);
-          setState(() {
-            _secretKey = secretKey;
-          });
-          print('got secret key ${base64Encode(secretKey)}');
-          print('got secret key ${utf8.decode(secretKey)}');
-          return;
-        }
+        final secretKey = decryptSecretKey(cipherData.sublist(0, secretKeySize), privateKey);
+        setState(() {
+          _secretKey = secretKey;
+        });
+        print('got ${secretKey.length} bytes secret key ${base64Encode(secretKey)}');
         String? message;
         try {
-          message = decryptString(cipherData, secretKey, iv);
+          message = decryptString(cipherData.sublist(secretKeySize), secretKey, iv);
           final fields = <String>[];
           final decoded = jsonDecode(message!);
           for (final field in decoded['fields']) {

@@ -4,6 +4,8 @@ import "package:pointycastle/export.dart";
 import 'package:basic_utils/basic_utils.dart';
 import 'dart:convert' show utf8;
 
+const secretKeySize = 512;
+
 Future<AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey>> generateKeyPair() {
   return compute(_generateKeyPair, 4096);
 }
@@ -15,7 +17,6 @@ AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey> _generateKeyPair(int keySize) {
 
 Uint8List decryptSecretKey(Uint8List cipherData, RSAPrivateKey privateKey) {
   var cipher = PKCS1Encoding(RSAEngine());
-  // TODO: ECBBlockCipher?
   cipher.init(false, PrivateKeyParameter<RSAPrivateKey>(privateKey));
   try {
     return cipher.process(cipherData);

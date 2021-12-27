@@ -30,7 +30,6 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
 import kotlin.concurrent.thread
-import kotlin.math.min
 import kotlin.reflect.KProperty
 
 
@@ -51,7 +50,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private const val PORT_TCP = 24990
         private const val BUFFER_SIZE = 1024 // TODO: Set to actual size of public key datum, probably a lot smaller!
         private const val UDP_TIMEOUT = 500
-        private const val DELIMITER = ':'
+        private const val CONFIG_DELIMITER = ':'
         private const val IV_SIZE = 16
         private const val ALGORITHM_ASYMMETRIC = "RSA/ECB/PKCS1Padding";
         private const val ALGORITHM_SYMMETRIC = "AES/CBC/PKCS5Padding";
@@ -63,7 +62,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             val keySpec = X509EncodedKeySpec(keyData)
             val keyFactory: KeyFactory = KeyFactory.getInstance("RSA")
             val publicKey = keyFactory.generatePublic(keySpec)
-            val iv = IvParameterSpec(keyData.sliceArray(0 until IV_SIZE - 1))
+            val iv = IvParameterSpec(keyData.sliceArray(0 until IV_SIZE))
             Log.d(TAG, "$base64PublicKey -> $publicKey")
             return publicKey to iv
         }
@@ -74,16 +73,21 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             return cipher.doFinal(data)
         }
 
-        private fun encrypt(message: String, secretKey: SecretKey): ByteArray {
+        private fun encrypt(message: String, secretKey: SecretKey, iv: IvParameterSpec): ByteArray {
             val cipher: Cipher = Cipher.getInstance(ALGORITHM_SYMMETRIC)
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv)
             return cipher.doFinal(message.toByteArray(Charsets.UTF_8))
         }
 
-        private fun decrypt(message: String, secretKey: SecretKey): String {
+        private fun decrypt(cipherData: ByteArray, secretKey: SecretKey, iv: IvParameterSpec): ByteArray {
             val cipher: Cipher = Cipher.getInstance(ALGORITHM_SYMMETRIC)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey)
-            return String(cipher.doFinal(message.toByteArray(Charsets.UTF_8)), Charsets.UTF_8)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, iv)
+            return cipher.doFinal(cipherData)
+        }
+
+        private fun decrypt(cipherText: String, secretKey: SecretKey, iv: IvParameterSpec): String {
+            val clearData = decrypt(cipherText.toByteArray(Charsets.UTF_8), secretKey, iv)
+            return String(clearData, Charsets.UTF_8)
         }
 
         private fun calculateCode(encodedPublicKey: String): String {
@@ -167,6 +171,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private fun connectToTcp() {
             val remoteHost = this.remoteHost ?: return
             val remotePublicKey = this.remotePublicKey ?: return
+            val iv = this.iv ?: return
             thread {
                 val keyGen = KeyGenerator.getInstance("AES");
                 keyGen.init(SecureRandom.getInstanceStrong())
@@ -185,20 +190,23 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                         socket.getOutputStream().apply {
                             Log.d(TAG, "secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
 //                            write(encrypt(secretKey.encoded, remotePublicKey))
-                            val encryptedSecret = encrypt("hello".toByteArray(), remotePublicKey)
-                            Log.d(TAG, "encryptedSecret: ${String(Base64.getEncoder().encode(encryptedSecret))}")
-                            write(encryptedSecret)
+                            val encryptedSecret = encrypt(secretKey.encoded, remotePublicKey)
+                            val encryptedConfig = encrypt(config, secretKey, iv)
+                            Log.d(TAG, "encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
+                            Log.d(TAG, "encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
+                            val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
+                            Log.d(TAG, "decryptedConfig: ${String(decryptedConfig)}")
+//                            write(encryptedSecret)
+                            write(encryptedSecret + encryptedConfig)
                             flush()
-//                            write(encrypt(config, secretKey))
-//                            flush()
                         }
                         Log.d(TAG, "Config sent")
                         socket.getInputStream().bufferedReader().forEachLine { encryptedData ->
                             // TODO: Read in config values
                             Log.d(TAG, "Received TCP: $encryptedData")
-                            val data = decrypt(encryptedData, secretKey)
+                            val data = decrypt(encryptedData, secretKey, iv)
                             Log.d(TAG, "Received data: $data")
-                            val dataIndex = data.indexOf(DELIMITER) + 1
+                            val dataIndex = data.indexOf(CONFIG_DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine
                             val fieldName = data.substring(0, dataIndex - 1)
                             val field = fields.firstOrNull { it.name == fieldName }
@@ -243,8 +251,8 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     private val handledKeys = mutableListOf<String>()
 
     init {
-        if (fields.any { it.name.contains(DELIMITER) }) {
-            throw IllegalArgumentException("Character '$DELIMITER' is used as a delimiter and cannot be used in a field name")
+        if (fields.any { it.name.contains(CONFIG_DELIMITER) }) {
+            throw IllegalArgumentException("Character '$CONFIG_DELIMITER' is used as a delimiter and cannot be used in a field name")
         }
     }
 
@@ -256,17 +264,6 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     suspend fun postConfiguration(key: String, value: Any) {
         configurationsFlow.emit(key to value)
     }
-}
-
-fun ByteArray.subarrays(maxSize: Int): Iterable<ByteArray> {
-    val subsequenceCount = this.size / maxSize
-    val subarrays = mutableListOf<ByteArray>()
-    for (i in 0 until subsequenceCount - 1) {
-        val startIndex = i * maxSize
-        val endIndex = min(size, (i + 1) * maxSize) - 1
-        subarrays += slice(startIndex until endIndex).toByteArray()
-    }
-    return subarrays
 }
 
 class ClosingDelegate<T: Closeable> {
