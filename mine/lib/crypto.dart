@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import "package:pointycastle/export.dart";
 import 'package:basic_utils/basic_utils.dart';
-import 'dart:convert' show utf8;
+import 'dart:convert' show base64Decode, utf8;
 
 const secretKeySize = 512;
 
@@ -60,5 +60,6 @@ String calculateCode(String encodedPublicKey) {
 }
 
 Uint8List calculateIv(String encodedPublicKey) {
-  return Uint8List.fromList(utf8.encode(encodedPublicKey).sublist(0, 16));
+  final firstLineEnd = encodedPublicKey.indexOf('\n');
+  return Uint8List.fromList(base64Decode(encodedPublicKey.substring(0, firstLineEnd)).sublist(0, 16));
 }

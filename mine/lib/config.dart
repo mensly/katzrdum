@@ -114,6 +114,8 @@ class _ConfigPageState extends State<ConfigPage> {
         print('got ${secretKey.length} bytes secret key ${base64Encode(secretKey)}');
         String? message;
         try {
+          print('encrypted config: ${base64Encode(cipherData.sublist(secretKeySize))}');
+          print('iv: ${base64Encode(iv)}');
           message = decryptString(cipherData.sublist(secretKeySize), secretKey, iv);
           final fields = <String>[];
           final decoded = jsonDecode(message!);

@@ -196,6 +196,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                             Log.d(TAG, "encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
                             val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
                             Log.d(TAG, "decryptedConfig: ${String(decryptedConfig)}")
+                            Log.d(TAG, "iv: ${String(Base64.getEncoder().encode(iv.iv))}")
 //                            write(encryptedSecret)
                             write(encryptedSecret + encryptedConfig)
                             flush()
