@@ -21,13 +21,14 @@ import java.net.Socket
 import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.security.KeyFactory
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-import java.security.PrivateKey
 import java.security.PublicKey
+import java.security.SecureRandom
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.IvParameterSpec
 import kotlin.concurrent.thread
 import kotlin.math.min
 import kotlin.reflect.KProperty
@@ -52,42 +53,43 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private const val BUFFER_SIZE = 1024 // TODO: Set to actual size of public key datum, probably a lot smaller!
         private const val UDP_TIMEOUT = 500
         private const val DELIMITER = ':'
-        private const val BLOCK_SIZE = 512
+        private const val IV_SIZE = 16
+        private const val ALGORITHM_ASYMMETRIC = "RSA/ECB/PKCS1Padding";
+        private const val ALGORITHM_SYMMETRIC = "AES/CBC/PKCS5Padding";
+        private val LONG_MAX = Long.MAX_VALUE.toBigInteger()
 
-        private fun getPublicKey(base64PublicKey: String): PublicKey {
+        private fun parsePublicKey(base64PublicKey: String): Pair<PublicKey, IvParameterSpec> {
             val joinedKey = base64PublicKey.split("\n").joinToString(separator = "")
-            val keySpec =
-                X509EncodedKeySpec(Base64.getDecoder().decode(joinedKey.toByteArray()))
+            val keyData = Base64.getDecoder().decode(joinedKey.toByteArray())
+            val keySpec = X509EncodedKeySpec(keyData)
             val keyFactory: KeyFactory = KeyFactory.getInstance("RSA")
-            return keyFactory.generatePublic(keySpec)
+            val publicKey = keyFactory.generatePublic(keySpec)
+            val iv = IvParameterSpec(keyData.sliceArray(0 until IV_SIZE - 1))
+            return publicKey to iv
         }
 
-        private fun encrypt(message: String, publicKey: String): ByteArray {
-            val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-            cipher.init(Cipher.ENCRYPT_MODE, getPublicKey(publicKey))
-            message.toByteArray(Charsets.UTF_8).subarrays(BLOCK_SIZE).forEach(cipher::update)
-            return cipher.doFinal()
+        private fun encrypt(message: String, publicKey: PublicKey): ByteArray {
+            val cipher: Cipher = Cipher.getInstance(ALGORITHM_ASYMMETRIC)
+            cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+            return cipher.doFinal(message.toByteArray(Charsets.UTF_8))
         }
 
-        private fun decrypt(message: String, privateKey: PrivateKey): String {
-            val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-            cipher.init(Cipher.DECRYPT_MODE, privateKey)
-            message.toByteArray(Charsets.UTF_8).subarrays(BLOCK_SIZE).forEach(cipher::update)
-            return String(cipher.doFinal(), Charsets.UTF_8)
+        private fun encrypt(message: String, secretKey: SecretKey): ByteArray {
+            val cipher: Cipher = Cipher.getInstance(ALGORITHM_SYMMETRIC)
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            return cipher.doFinal(message.toByteArray(Charsets.UTF_8))
         }
-//        final _intMax = BigInt.from(9223372036854775807);
-//        String calculateCode(String encodedPublicKey) {
-//            var sum = BigInt.zero;
-//            for (final byte in encodedPublicKey.codeUnits) {
-//                sum = (sum + BigInt.from(byte)) % _intMax;
-//            }
-//            return sum.toRadixString(10).substring(1);
-//        }
-        private val longMax = Long.MAX_VALUE.toBigInteger()
+
+        private fun decrypt(message: String, secretKey: SecretKey): String {
+            val cipher: Cipher = Cipher.getInstance(ALGORITHM_SYMMETRIC)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey)
+            return String(cipher.doFinal(message.toByteArray(Charsets.UTF_8)), Charsets.UTF_8)
+        }
+
         private fun calculateCode(encodedPublicKey: String): String {
             var sum = BigInteger.ZERO
             for (byte in encodedPublicKey.codePoints()) {
-                sum = (sum + byte.toBigInteger()) % longMax
+                sum = (sum + byte.toBigInteger()) % LONG_MAX
             }
             return sum.toString().substring(1)
         }
@@ -98,7 +100,10 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     private inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
         private val activity = WeakReference(activity)
         private var remoteHost: InetAddress? = null
-        private var remotePublicKey: String? = null
+        private var remoteMessage: String? = null
+        private var remotePublicKey: PublicKey? = null
+        private var code: String? = null
+        private var iv: IvParameterSpec? = null
         private var udpSocket by ClosingDelegate<DatagramSocket>()
         private var tcpSocket by ClosingDelegate<Socket>()
 
@@ -147,10 +152,14 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                         Log.e(TAG, "Error with UDP socket")
                         return@thread // end thread
                     }
-                    if (message != null && message !in handledKeys && remotePublicKey != message) {
+                    if (message != null && message !in handledKeys && remoteMessage != message) {
                         Log.d(TAG, "Received UDP: $message from ${packet.address}")
                         remoteHost = packet.address
-                        remotePublicKey = message
+                        remoteMessage = message
+                        val parsed = parsePublicKey(message)
+                        remotePublicKey = parsed.first
+                        iv = parsed.second
+                        code = calculateCode(message)
                         runOnMain(this::showPrompt)
                     }
                 }
@@ -163,18 +172,13 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             val remoteHost = this.remoteHost ?: return
             val remotePublicKey = this.remotePublicKey ?: return
             thread {
-                val keyGen: KeyPairGenerator = KeyPairGenerator.getInstance("RSA")
-                keyGen.initialize(4096)
-                // FIXME: RSA can only encrypt data smaller than (or equal to) the key length. The answer is to encrypt the data with a symmetric algorithm such as AES which is designed to encrypt small and large data.
-                // Need to generate a SHARED key, send that to the mine encrypted using the mine's public key
-                // Encrypt all TCP comms after that (sending config and receiving values) using AES
-                val keyPair: KeyPair = keyGen.generateKeyPair()
-                val localPublicKey = Base64.getEncoder().encodeToString(keyPair.public.encoded)
+                val keyGen = KeyGenerator.getInstance("AES");
+                keyGen.init(SecureRandom.getInstanceStrong())
+                val secretKey = keyGen.generateKey()
 //                val config = mapOf(
-//                    KEY_PUBLIC_KEY to localPublicKey,
 //                    KEY_FIELDS to fields
 //                ).toString() // TODO: Encode with JSON via kotlinx.serialization
-                val config = "{\"key\":\"$localPublicKey\",\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
+                val config = "{\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
                 Log.d(TAG, "config: $config")
                 Log.d(TAG, "remotePublicKey: $remotePublicKey")
 //                val originalMessage = "Hello Brave New World"
@@ -197,7 +201,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                         socket.getInputStream().bufferedReader().forEachLine { encryptedData ->
                             // TODO: Read in config values
                             Log.d(TAG, "Received TCP: $encryptedData")
-                            val data = decrypt(encryptedData, keyPair.private)
+                            val data = decrypt(encryptedData, secretKey)
                             Log.d(TAG, "Received data: $data")
                             val dataIndex = data.indexOf(DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine
@@ -221,7 +225,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
         private fun showPrompt() {
             val activity = this.activity.get() ?: return
-            val code = this.remotePublicKey?.let(::calculateCode) ?: return
+            val code = this.code ?: return
             AlertDialog.Builder(activity)
                 .setMessage(configPrompt.replace(CODE_PLACEHOLDER, code))
                 .setPositiveButton(android.R.string.ok, this)
@@ -231,7 +235,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         }
 
         override fun onClick(dialog: DialogInterface, selection: Int) {
-            remotePublicKey?.let(handledKeys::add)
+            remoteMessage?.let(handledKeys::add)
             if (selection == DialogInterface.BUTTON_POSITIVE) {
                 connectToTcp()
             }
@@ -242,6 +246,12 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
     private val configurationsFlow = MutableSharedFlow<Pair<String, Any>>()
     private val handledKeys = mutableListOf<String>()
+
+    init {
+        if (fields.any { it.name.contains(DELIMITER) }) {
+            throw IllegalArgumentException("Character '$DELIMITER' is used as a delimiter and cannot be used in a field name")
+        }
+    }
 
     fun listen(activity: AppCompatActivity): Flow<Pair<String, Any>> {
         activity.lifecycle.addObserver(LifecycleObserver(activity))

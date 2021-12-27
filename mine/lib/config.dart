@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:basic_utils/basic_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:katzrdum/crypto.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -26,9 +27,10 @@ class _ConfigPageState extends State<ConfigPage> {
   var _broadcasting = false;
   String? _code;
   Object? _privateKey;
+  Uint8List? _secretKey;
+  Uint8List? _iv;
   // TODO: Model class for config that includes fields and key
   List<String>? _config;
-  Object? _clientKey;
 
   @override
   void initState() {
@@ -55,21 +57,14 @@ class _ConfigPageState extends State<ConfigPage> {
     var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
     final keyPair = CryptoUtils.generateRSAKeyPair(keySize: 4096);
     final publicKey = encodePublicKey(keyPair.publicKey);
-    // TODO: Remove this quick test of encrypt/decrypt
-    final originalMessage = "Hello Brave New World";
-    print(originalMessage);
-    print(publicKey);
-    final cipherMessage = encrypt(originalMessage, keyPair.publicKey);
-    print(cipherMessage);
-    final decodedMessage = decrypt(cipherMessage, keyPair.privateKey);
-    print(decodedMessage);
 
     final code = calculateCode(publicKey);
+    _privateKey = keyPair.privateKey;
+    _iv = calculateIv(publicKey);
+    _broadcasting = true;
     setState(() {
       _code = code;
     });
-    _privateKey = keyPair.privateKey;
-    _broadcasting = true;
     while (_broadcasting) {
       await sender.send(
           publicKey.codeUnits, Endpoint.broadcast(port: const Port(_portUdp)));
@@ -86,6 +81,10 @@ class _ConfigPageState extends State<ConfigPage> {
   }
 
   void _handleConnection(Socket client) async {
+    final iv = _iv;
+    if (iv == null) {
+      return; // No key generated
+    }
     if (_client != null) {
       // Already connected to a client
       client.close();
@@ -97,27 +96,33 @@ class _ConfigPageState extends State<ConfigPage> {
     });
     _broadcasting = false;
     client.listen(
-      (Uint8List data) async {
-        final message = String.fromCharCodes(data);
+      (Uint8List cipherData) async {
+        var secretKey = _secretKey;
+        if (secretKey == null) {
+          secretKey = decryptSecretKey(cipherData, _privateKey);
+          setState(() {
+            _secretKey = secretKey;
+          });
+          print("got secret key");
+          return;
+        }
+        String? message;
         try {
-          // TODO: Properly parse different fields
-          // netcat
-          // Sample data: {"fields":[{"name":"foo"},{"name":"bar"},"key":"AAAAB3NzaC1yc2EAAAADAQABAAABgQCzivj8BMOT9Uq3SqC+2DxAWlGN4QslLq+NA0yY8467CKJWgKb1uY+28zLn4FbwHAvTWR5TyDjPQFJUeiQckkhFSf06RoWzJFNoHB6AKmMLTWTlvAukHNYXNKTpbT7u1QymAQeaWP1d7c8BumTBbbjT/lmfFQSQRyKfgGDosA5Xbt2QKCZiL7gX0ItPM4Z1X40O4ieKLTsXb/PrzE02wZQng09Kk2D8t66mPf4VCOmcd73qBh3nLACoN2wESOcMrsQmBzoMJSzP/YbGI26BbJleeysQ6WTovlfPGaJpe+vlknN7gcjzXp3gRH53AXU/QvPD8xCxCdW+r4mWjCMa/MbCPoWh0twJP3w1PjnWvO2XmBfOFSJSXpea23l7vO+6KikcF5y/02dnpjk7c26irrmjdaRXE0A8zyozh+vWgPFi5xB+fRiX6V0kd8ZIHSH/qYcUb5yknL1IIZWURN5pnl4M7kVSY1Ob4ekjQ+WJ0TvM+9a6H304Tvo8u5/GcYDZ3qE="]}
+          message = decryptString(cipherData, secretKey, iv);
           final fields = <String>[];
-          final decoded = jsonDecode(decrypt(message, _privateKey));
-          final String clientKey = decoded['key'];
+          final decoded = jsonDecode(message!);
           for (final field in decoded['fields']) {
+            // TODO: Properly parse different fields
             final name = field['name'];
             fields.add(name);
           }
           setState(() {
-            _clientKey = clientKey;
             _config = fields;
           });
         } catch (_) {
           // TODO: Handle json parsing errors etc
           setState(() {
-            _config = ['Could not decode: ' + message];
+            _config = ['Could not decode: ' + (message ?? String.fromCharCodes(cipherData))];
           });
         }
       },
@@ -142,6 +147,8 @@ class _ConfigPageState extends State<ConfigPage> {
     Widget body;
     final client = _client;
     final config = _config;
+    final secretKey = _secretKey;
+    final iv = _iv;
     if (kIsWeb) {
       body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Image.asset('assets/balrog_wink.png', width: 320, height: 320),
@@ -156,7 +163,7 @@ class _ConfigPageState extends State<ConfigPage> {
         MaterialButton(
             onPressed: () => _downloadApk(), child: const Text("Download APK"))
       ]);
-    } else if (client != null && config != null) {
+    } else if (client != null && config != null && secretKey != null && iv != null) {
       // Show config UI
       body = ListView.builder(
           itemCount: config.length + 2,
@@ -170,9 +177,7 @@ class _ConfigPageState extends State<ConfigPage> {
               );
               case 1: return const DividerWidget();
               default: return StringConfigWidget(
-                  client: client,
-                  clientKey: _clientKey,
-                  name: config[index - 2]);
+                  name: config[index - 2], client: client, secretKey: secretKey, iv: iv);
             }
           }
       );
@@ -201,16 +206,18 @@ class _ConfigPageState extends State<ConfigPage> {
 
 // TODO: Move to separate subpackage
 class StringConfigWidget extends StatefulWidget {
-  const StringConfigWidget({Key? key, required this.client, required this.name, required this.clientKey})
+  const StringConfigWidget({Key? key, required this.name, required this.client,
+    required this.secretKey, required this.iv})
       : super(key: key);
 
   // TODO: Use ConfigField class
   final String name;
   final Socket client;
-  final Object? clientKey;
+  final Uint8List secretKey;
+  final Uint8List iv;
 
   void sendValue(String value) {
-    client.writeln(encrypt('$name:$value', clientKey));
+    client.writeln(encryptString('$name:$value', secretKey, iv));
   }
 
   @override

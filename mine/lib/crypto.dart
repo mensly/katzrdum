@@ -1,17 +1,37 @@
+import 'dart:typed_data';
 import "package:pointycastle/export.dart";
 import 'package:basic_utils/basic_utils.dart';
+import 'dart:convert' show utf8;
 
-String encrypt(String message, Object? publicKey) =>
-    CryptoUtils.rsaEncrypt(message, publicKey as RSAPublicKey);
-
-String decrypt(String cipherMessage, Object? privateKey) =>
-    CryptoUtils.rsaDecrypt(cipherMessage, privateKey as RSAPrivateKey);
-
-RSAPublicKey parseClientKey(String key) {
-  var pem =
-      '${CryptoUtils.BEGIN_PUBLIC_KEY}\n$key\n${CryptoUtils.END_PUBLIC_KEY}';
-  return CryptoUtils.rsaPublicKeyFromPem(pem);
+Uint8List decryptSecretKey(Uint8List cipherData, Object? privateKey) {
+  var cipher = PKCS1Encoding(RSAEngine());
+  // TODO: ECBBlockCipher?
+  cipher.init(false, PrivateKeyParameter<RSAPrivateKey>(privateKey as RSAPrivateKey));
+  try {
+    return cipher.process(cipherData);
+  } catch (e) {
+    print('crypto error $e');
+    rethrow;
+  }
 }
+
+Uint8List _process(bool forEncryption, Uint8List cipherData, Uint8List secretKey, Uint8List iv) {
+  final cbcCipher = CBCBlockCipher(AESEngine());
+  final ivParams = ParametersWithIV<KeyParameter>(KeyParameter(secretKey), iv);
+  final paddingParams = PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(ivParams, null);
+  final PaddedBlockCipherImpl paddedCipher = PaddedBlockCipherImpl(PKCS7Padding(), cbcCipher);
+  paddedCipher.init(forEncryption, paddingParams);
+  try {
+    return paddedCipher.process(cipherData);
+  } catch (e) {
+    print('crypto error $e');
+    rethrow;
+  }
+}
+
+
+Uint8List? encryptString(String cipherMessage, Uint8List secretKey, Uint8List iv) => _process(true, Uint8List.fromList(utf8.encode(cipherMessage)), secretKey, iv);
+String? decryptString(Uint8List cipherData, Uint8List secretKey, Uint8List iv) => utf8.decode(_process(false, cipherData, secretKey, iv));
 
 String encodePublicKey(PublicKey publicKey) {
   final pem = CryptoUtils.encodeRSAPublicKeyToPem(publicKey as RSAPublicKey);
@@ -22,8 +42,12 @@ String encodePublicKey(PublicKey publicKey) {
 final _intMax = BigInt.from(9223372036854775807);
 String calculateCode(String encodedPublicKey) {
   var sum = BigInt.zero;
-  for (final byte in encodedPublicKey.codeUnits) {
+  for (final byte in utf8.encode(encodedPublicKey)) {
     sum = (sum + BigInt.from(byte)) % _intMax;
   }
   return sum.toRadixString(10).substring(1);
+}
+
+Uint8List calculateIv(String encodedPublicKey) {
+  return Uint8List.fromList(utf8.encode(encodedPublicKey).sublist(0, 16));
 }
