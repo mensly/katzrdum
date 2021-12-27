@@ -27,6 +27,7 @@ class _ConfigPageState extends State<ConfigPage> {
   Socket? _client;
   var _broadcasting = false;
   String? _code;
+  String? _publicKey;
   RSAPrivateKey? _privateKey;
   Uint8List? _secretKey;
   Uint8List? _iv;
@@ -53,10 +54,10 @@ class _ConfigPageState extends State<ConfigPage> {
     _broadcast();
   }
 
-  void _broadcast() async {
-    var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
+  Future<String> _generateKeys() async {
     final keyPair = await generateKeyPair();
     final publicKey = encodePublicKey(keyPair.publicKey);
+    print('publicKey: $publicKey');
 
     final code = calculateCode(publicKey);
     _privateKey = keyPair.privateKey;
@@ -65,9 +66,16 @@ class _ConfigPageState extends State<ConfigPage> {
     setState(() {
       _code = code;
     });
+    _publicKey = publicKey;
+    return publicKey;
+  }
+
+  void _broadcast() async {
+    var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
+    final publicKey = _publicKey ?? await _generateKeys();
+    final data = utf8.encode(publicKey);
     while (_broadcasting) {
-      await sender.send(
-          publicKey.codeUnits, Endpoint.broadcast(port: const Port(_portUdp)));
+      await sender.send(data, Endpoint.broadcast(port: const Port(_portUdp)));
       await Future.delayed(const Duration(seconds: 1));
     }
   }
@@ -100,11 +108,13 @@ class _ConfigPageState extends State<ConfigPage> {
       (Uint8List cipherData) async {
         var secretKey = _secretKey;
         if (secretKey == null) {
+          print('cipherData: ${base64Encode(cipherData)}');
           secretKey = decryptSecretKey(cipherData, privateKey);
           setState(() {
             _secretKey = secretKey;
           });
-          print("got secret key");
+          print('got secret key ${base64Encode(secretKey)}');
+          print('got secret key ${utf8.decode(secretKey)}');
           return;
         }
         String? message;
@@ -124,7 +134,7 @@ class _ConfigPageState extends State<ConfigPage> {
           print('error receiving config: $e');
           // TODO: Handle json parsing errors etc
           setState(() {
-            _config = ['Could not decode: ' + (message ?? String.fromCharCodes(cipherData))];
+            _config = ['Could not decode: ' + (message ?? String.fromCharCodes(cipherData)), e.toString()];
           });
         }
       },

@@ -64,13 +64,14 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             val keyFactory: KeyFactory = KeyFactory.getInstance("RSA")
             val publicKey = keyFactory.generatePublic(keySpec)
             val iv = IvParameterSpec(keyData.sliceArray(0 until IV_SIZE - 1))
+            Log.d(TAG, "$base64PublicKey -> $publicKey")
             return publicKey to iv
         }
 
-        private fun encrypt(message: String, publicKey: PublicKey): ByteArray {
+        private fun encrypt(data: ByteArray, publicKey: PublicKey): ByteArray {
             val cipher: Cipher = Cipher.getInstance(ALGORITHM_ASYMMETRIC)
             cipher.init(Cipher.ENCRYPT_MODE, publicKey)
-            return cipher.doFinal(message.toByteArray(Charsets.UTF_8))
+            return cipher.doFinal(data)
         }
 
         private fun encrypt(message: String, secretKey: SecretKey): ByteArray {
@@ -110,10 +111,6 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             super.onResume(owner)
             handledKeys.clear()
             startUdpListener()
-            // netcat -l 24990
-//            remoteHost = InetAddress.getByName("192.168.20.10")
-//            remotePublicKey = "MOCK"
-//            connectToTcp()
         }
 
         override fun onPause(owner: LifecycleOwner) {
@@ -186,8 +183,14 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                         tcpSocket = socket
                         Log.d(TAG, "TCP Socket connected: $socket")
                         socket.getOutputStream().apply {
-                            write(encrypt(config, secretKey))
+                            Log.d(TAG, "secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
+//                            write(encrypt(secretKey.encoded, remotePublicKey))
+                            val encryptedSecret = encrypt("hello".toByteArray(), remotePublicKey)
+                            Log.d(TAG, "encryptedSecret: ${String(Base64.getEncoder().encode(encryptedSecret))}")
+                            write(encryptedSecret)
                             flush()
+//                            write(encrypt(config, secretKey))
+//                            flush()
                         }
                         Log.d(TAG, "Config sent")
                         socket.getInputStream().bufferedReader().forEachLine { encryptedData ->
