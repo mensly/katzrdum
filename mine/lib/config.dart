@@ -58,7 +58,7 @@ class _ConfigPageState extends State<ConfigPage> {
   Future<String> _generateKeys() async {
     final keyPair = await generateKeyPair();
     final publicKey = encodePublicKey(keyPair.publicKey);
-    print('publicKey: $publicKey');
+    debugPrint('publicKey: $publicKey');
 
     final code = calculateCode(publicKey);
     _privateKey = keyPair.privateKey;
@@ -128,7 +128,7 @@ class _ConfigPageState extends State<ConfigPage> {
             _config = fields;
           });
         } catch (e) {
-          print('error receiving config: $e');
+          debugPrint('error receiving config: $e');
           // TODO: Handle json parsing errors etc
           setState(() {
             _config = ['Could not decode: ' + (message ?? String.fromCharCodes(cipherData)), e.toString()];
@@ -229,9 +229,9 @@ class StringConfigWidget extends StatefulWidget {
 
   void sendValue(String value) {
     final cipherMessage = base64Encode(encryptString('$name:$value', secretKey, iv).toList());
-    print('cipherMessage: $cipherMessage');
+    debugPrint('cipherMessage: $cipherMessage');
     client.writeln(cipherMessage);
-    print('sent config message');
+    debugPrint('sent config message');
   }
 
   @override

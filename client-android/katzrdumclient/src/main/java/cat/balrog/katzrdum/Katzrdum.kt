@@ -44,7 +44,7 @@ import kotlin.reflect.KProperty
 class Katzrdum(private val fields: List<ConfigField<out Any>>) {
     companion object {
         const val CODE_PLACEHOLDER = "\${__CODE__}"
-        private const val TAG = "Katz"
+        private const val LOG_TAG = "Katz"
         private const val KEY_FIELDS = "fields"
         private const val PORT_UDP = 21055
         private const val PORT_TCP = 24990
@@ -56,6 +56,12 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         private const val ALGORITHM_SYMMETRIC = "AES/CBC/PKCS5Padding";
         private val LONG_MAX = Long.MAX_VALUE.toBigInteger()
 
+        private fun log(message: String) {
+            if (BuildConfig.DEBUG) {
+                Log.d(LOG_TAG, message)
+            }
+        }
+
         private fun parsePublicKey(base64PublicKey: String): Pair<PublicKey, IvParameterSpec> {
             val joinedKey = base64PublicKey.split("\n").joinToString(separator = "")
             val keyData = Base64.getDecoder().decode(joinedKey.toByteArray())
@@ -63,7 +69,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             val keyFactory: KeyFactory = KeyFactory.getInstance("RSA")
             val publicKey = keyFactory.generatePublic(keySpec)
             val iv = IvParameterSpec(keyData.sliceArray(0 until IV_SIZE))
-            Log.d(TAG, "$base64PublicKey -> $publicKey")
+            log("$base64PublicKey -> $publicKey")
             return publicKey to iv
         }
 
@@ -141,7 +147,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                 val packet = DatagramPacket(buffer, BUFFER_SIZE)
                 udpSocket = socket
                 while (!socket.isClosed) {
-//                    Log.d(TAG, System.currentTimeMillis().toString())
+//                    log(System.currentTimeMillis().toString())
                     socket.soTimeout = UDP_TIMEOUT
                     val message = try {
                         socket.receive(packet)
@@ -149,11 +155,11 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                     } catch (e: SocketTimeoutException) {
                         null // Timeout is normal
                     } catch (e: SocketException) {
-                        Log.e(TAG, "Error with UDP socket")
+                        Log.e(LOG_TAG, "Error with UDP socket")
                         return@thread // end thread
                     }
                     if (message != null && message !in handledKeys && remoteMessage != message) {
-                        Log.d(TAG, "Received UDP: $message from ${packet.address}")
+                        log("Received UDP: $message from ${packet.address}")
                         remoteHost = packet.address
                         remoteMessage = message
                         val parsed = parsePublicKey(message)
@@ -180,34 +186,34 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 //                    KEY_FIELDS to fields
 //                ).toString() // TODO: Encode with JSON via kotlinx.serialization
                 val config = "{\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
-                Log.d(TAG, "config: $config")
-                Log.d(TAG, "remotePublicKey: $remotePublicKey")
+                log("config: $config")
+                log("remotePublicKey: $remotePublicKey")
 
                 try {
                     Socket(remoteHost, PORT_TCP).use { socket ->
                         tcpSocket = socket
-                        Log.d(TAG, "TCP Socket connected: $socket")
+                        log("TCP Socket connected: $socket")
                         socket.getOutputStream().apply {
-                            Log.d(TAG, "secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
+//                            log("secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
 //                            write(encrypt(secretKey.encoded, remotePublicKey))
                             val encryptedSecret = encrypt(secretKey.encoded, remotePublicKey)
                             val encryptedConfig = encrypt(config, secretKey, iv)
-                            Log.d(TAG, "encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
-                            Log.d(TAG, "encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
-                            val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
-                            Log.d(TAG, "decryptedConfig: ${String(decryptedConfig)}")
-                            Log.d(TAG, "iv: ${String(Base64.getEncoder().encode(iv.iv))}")
+                            log("encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
+                            log("encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
+//                            val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
+//                            log("decryptedConfig: ${String(decryptedConfig)}")
+//                            log("iv: ${String(Base64.getEncoder().encode(iv.iv))}")
 //                            write(encryptedSecret)
                             write(encryptedSecret + encryptedConfig)
                             flush()
                         }
-                        Log.d(TAG, "Config sent")
+                        log("Config sent")
                         socket.getInputStream().bufferedReader().forEachLine { encryptedMessage ->
-                            Log.d(TAG, "Received TCP: $encryptedMessage")
+                            log("Received TCP: $encryptedMessage")
                             val encryptedData = Base64.getDecoder().decode(encryptedMessage)
                             // TODO: Read in config values
                             val data = decryptString(encryptedData, secretKey, iv)
-                            Log.d(TAG, "Received data: $data")
+                            log("Received data: $data")
                             val dataIndex = data.indexOf(CONFIG_DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine
                             val fieldName = data.substring(0, dataIndex - 1)
@@ -223,7 +229,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                 } catch (e: SocketException) {
                     // TODO
                 }
-                Log.d(TAG, "Socket closed")
+                log("Socket closed")
                 // TODO: handle errors, restart and stuff
             }
         }

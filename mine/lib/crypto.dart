@@ -21,7 +21,7 @@ Uint8List decryptSecretKey(Uint8List cipherData, RSAPrivateKey privateKey) {
   try {
     return cipher.process(cipherData);
   } catch (e) {
-    print('crypto error $e');
+    debugPrint('crypto error $e');
     rethrow;
   }
 }
@@ -35,7 +35,7 @@ Uint8List _process(bool forEncryption, Uint8List cipherData, Uint8List secretKey
   try {
     return paddedCipher.process(cipherData);
   } catch (e) {
-    print('crypto error $e');
+    debugPrint('crypto error $e');
     rethrow;
   }
 }
