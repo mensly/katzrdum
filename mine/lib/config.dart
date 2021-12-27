@@ -63,7 +63,6 @@ class _ConfigPageState extends State<ConfigPage> {
     final code = calculateCode(publicKey);
     _privateKey = keyPair.privateKey;
     _iv = calculateIv(publicKey);
-    _broadcasting = true;
     setState(() {
       _code = code;
     });
@@ -75,6 +74,7 @@ class _ConfigPageState extends State<ConfigPage> {
     var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
     final publicKey = _publicKey ?? await _generateKeys();
     final data = utf8.encode(publicKey);
+    _broadcasting = true;
     while (_broadcasting) {
       await sender.send(data, Endpoint.broadcast(port: const Port(_portUdp)));
       await Future.delayed(const Duration(seconds: 1));
@@ -111,14 +111,14 @@ class _ConfigPageState extends State<ConfigPage> {
         setState(() {
           _secretKey = secretKey;
         });
-        print('got ${secretKey.length} bytes secret key ${base64Encode(secretKey)}');
+        debugPrint('got ${secretKey.length} bytes secret key ${base64Encode(secretKey)}');
         String? message;
         try {
-          print('encrypted config: ${base64Encode(cipherData.sublist(secretKeySize))}');
-          print('iv: ${base64Encode(iv)}');
+          debugPrint('encrypted config: ${base64Encode(cipherData.sublist(secretKeySize))}');
+          debugPrint('iv: ${base64Encode(iv)}');
           message = decryptString(cipherData.sublist(secretKeySize), secretKey, iv);
           final fields = <String>[];
-          final decoded = jsonDecode(message!);
+          final decoded = jsonDecode(message);
           for (final field in decoded['fields']) {
             // TODO: Properly parse different fields
             final name = field['name'];
@@ -136,10 +136,12 @@ class _ConfigPageState extends State<ConfigPage> {
         }
       },
       onError: (error) {
+        debugPrint('tcp error $error');
         _disconnect();
         _broadcast();
       },
       onDone: () {
+        debugPrint('done');
         _disconnect();
         _broadcast();
       },
@@ -226,7 +228,10 @@ class StringConfigWidget extends StatefulWidget {
   final Uint8List iv;
 
   void sendValue(String value) {
-    client.writeln(encryptString('$name:$value', secretKey, iv));
+    final cipherMessage = base64Encode(encryptString('$name:$value', secretKey, iv).toList());
+    print('cipherMessage: $cipherMessage');
+    client.writeln(cipherMessage);
+    print('sent config message');
   }
 
   @override

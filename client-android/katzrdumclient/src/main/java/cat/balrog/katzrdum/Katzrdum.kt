@@ -85,8 +85,8 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             return cipher.doFinal(cipherData)
         }
 
-        private fun decrypt(cipherText: String, secretKey: SecretKey, iv: IvParameterSpec): String {
-            val clearData = decrypt(cipherText.toByteArray(Charsets.UTF_8), secretKey, iv)
+        private fun decryptString(cipherData: ByteArray, secretKey: SecretKey, iv: IvParameterSpec): String {
+            val clearData = decrypt(cipherData, secretKey, iv)
             return String(clearData, Charsets.UTF_8)
         }
 
@@ -202,10 +202,11 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                             flush()
                         }
                         Log.d(TAG, "Config sent")
-                        socket.getInputStream().bufferedReader().forEachLine { encryptedData ->
+                        socket.getInputStream().bufferedReader().forEachLine { encryptedMessage ->
+                            Log.d(TAG, "Received TCP: $encryptedMessage")
+                            val encryptedData = Base64.getDecoder().decode(encryptedMessage)
                             // TODO: Read in config values
-                            Log.d(TAG, "Received TCP: $encryptedData")
-                            val data = decrypt(encryptedData, secretKey, iv)
+                            val data = decryptString(encryptedData, secretKey, iv)
                             Log.d(TAG, "Received data: $data")
                             val dataIndex = data.indexOf(CONFIG_DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine

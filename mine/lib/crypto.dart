@@ -41,8 +41,8 @@ Uint8List _process(bool forEncryption, Uint8List cipherData, Uint8List secretKey
 }
 
 
-Uint8List? encryptString(String cipherMessage, Uint8List secretKey, Uint8List iv) => _process(true, Uint8List.fromList(utf8.encode(cipherMessage)), secretKey, iv);
-String? decryptString(Uint8List cipherData, Uint8List secretKey, Uint8List iv) => utf8.decode(_process(false, cipherData, secretKey, iv));
+Uint8List encryptString(String cipherMessage, Uint8List secretKey, Uint8List iv) => _process(true, Uint8List.fromList(utf8.encode(cipherMessage)), secretKey, iv);
+String decryptString(Uint8List cipherData, Uint8List secretKey, Uint8List iv) => utf8.decode(_process(false, cipherData, secretKey, iv));
 
 String encodePublicKey(PublicKey publicKey) {
   final pem = CryptoUtils.encodeRSAPublicKeyToPem(publicKey as RSAPublicKey);
