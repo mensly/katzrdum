@@ -33,15 +33,16 @@ class _ConfigPageState extends State<ConfigPage> {
   @override
   void initState() {
     super.initState();
+    // FIXME: Something is blocking the main thread
     _runServer();
   }
 
   @override
   void dispose() {
-    super.dispose();
-    _disconnect();
     _server.close();
+    _client?.close();
     _broadcasting = false;
+    super.dispose();
   }
 
   void _runServer() async {
@@ -52,11 +53,20 @@ class _ConfigPageState extends State<ConfigPage> {
 
   void _broadcast() async {
     var sender = await UDP.bind(Endpoint.any(port: const Port(_portUdp)));
-    // TODO: Generate a key pair
     final keyPair = CryptoUtils.generateRSAKeyPair(keySize: 4096);
     final publicKey = encodePublicKey(keyPair.publicKey);
+    // TODO: Remove this quick test of encrypt/decrypt
+    final originalMessage = "Hello Brave New World";
+    print(originalMessage);
+    print(publicKey);
+    final cipherMessage = encrypt(originalMessage, keyPair.publicKey);
+    print(cipherMessage);
+    final decodedMessage = decrypt(cipherMessage, keyPair.privateKey);
+    print(decodedMessage);
+
+    final code = calculateCode(publicKey);
     setState(() {
-      _code = publicKey.substring(0, 4).toUpperCase();
+      _code = code;
     });
     _privateKey = keyPair.privateKey;
     _broadcasting = true;

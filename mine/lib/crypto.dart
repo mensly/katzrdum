@@ -18,3 +18,12 @@ String encodePublicKey(PublicKey publicKey) {
   final lines = pem.split('\n');
   return lines.sublist(1, lines.length - 1).join('\n');
 }
+
+final _intMax = BigInt.from(9223372036854775807);
+String calculateCode(String encodedPublicKey) {
+  var sum = BigInt.zero;
+  for (final byte in encodedPublicKey.codeUnits) {
+    sum = (sum + BigInt.from(byte)) % _intMax;
+  }
+  return sum.toRadixString(10).substring(1);
+}

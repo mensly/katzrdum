@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.lang.ref.WeakReference
+import java.math.BigInteger
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -73,6 +74,22 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             cipher.init(Cipher.DECRYPT_MODE, privateKey)
             message.toByteArray(Charsets.UTF_8).subarrays(BLOCK_SIZE).forEach(cipher::update)
             return String(cipher.doFinal(), Charsets.UTF_8)
+        }
+//        final _intMax = BigInt.from(9223372036854775807);
+//        String calculateCode(String encodedPublicKey) {
+//            var sum = BigInt.zero;
+//            for (final byte in encodedPublicKey.codeUnits) {
+//                sum = (sum + BigInt.from(byte)) % _intMax;
+//            }
+//            return sum.toRadixString(10).substring(1);
+//        }
+        private val longMax = Long.MAX_VALUE.toBigInteger()
+        private fun calculateCode(encodedPublicKey: String): String {
+            var sum = BigInteger.ZERO
+            for (byte in encodedPublicKey.codePoints()) {
+                sum = (sum + byte.toBigInteger()) % longMax
+            }
+            return sum.toString().substring(1)
         }
     }
 
@@ -148,14 +165,26 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
             thread {
                 val keyGen: KeyPairGenerator = KeyPairGenerator.getInstance("RSA")
                 keyGen.initialize(4096)
-                val pair: KeyPair = keyGen.generateKeyPair()
-                val localPublicKey = Base64.getEncoder().encodeToString(pair.public.encoded)
+                // FIXME: RSA can only encrypt data smaller than (or equal to) the key length. The answer is to encrypt the data with a symmetric algorithm such as AES which is designed to encrypt small and large data.
+                // Need to generate a SHARED key, send that to the mine encrypted using the mine's public key
+                // Encrypt all TCP comms after that (sending config and receiving values) using AES
+                val keyPair: KeyPair = keyGen.generateKeyPair()
+                val localPublicKey = Base64.getEncoder().encodeToString(keyPair.public.encoded)
 //                val config = mapOf(
 //                    KEY_PUBLIC_KEY to localPublicKey,
 //                    KEY_FIELDS to fields
 //                ).toString() // TODO: Encode with JSON via kotlinx.serialization
                 val config = "{\"key\":\"$localPublicKey\",\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
                 Log.d(TAG, "config: $config")
+                Log.d(TAG, "remotePublicKey: $remotePublicKey")
+//                val originalMessage = "Hello Brave New World"
+//                Log.d(TAG, originalMessage);
+//                Log.d(TAG, localPublicKey)
+//                val cipherMessage = String(encrypt(originalMessage, localPublicKey))
+//                Log.d(TAG, cipherMessage)
+//                val decodedMessage = decrypt(cipherMessage, keyPair.private)
+//                Log.d(TAG, decodedMessage)
+
                 try {
                     Socket(remoteHost, PORT_TCP).use { socket ->
                         tcpSocket = socket
@@ -168,7 +197,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
                         socket.getInputStream().bufferedReader().forEachLine { encryptedData ->
                             // TODO: Read in config values
                             Log.d(TAG, "Received TCP: $encryptedData")
-                            val data = decrypt(encryptedData, pair.private)
+                            val data = decrypt(encryptedData, keyPair.private)
                             Log.d(TAG, "Received data: $data")
                             val dataIndex = data.indexOf(DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine
@@ -192,7 +221,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 
         private fun showPrompt() {
             val activity = this.activity.get() ?: return
-            val code = remotePublicKey?.substring(0, 4)?.uppercase() ?: return
+            val code = this.remotePublicKey?.let(::calculateCode) ?: return
             AlertDialog.Builder(activity)
                 .setMessage(configPrompt.replace(CODE_PLACEHOLDER, code))
                 .setPositiveButton(android.R.string.ok, this)
