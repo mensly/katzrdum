@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.lang.ref.WeakReference
+import java.math.BigDecimal
 import java.math.BigInteger
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -41,7 +42,8 @@ import kotlin.reflect.KProperty
  *
  * See https://mine.balrog.cat/#/config
  */
-class Katzrdum(private val fields: List<ConfigField<out Any>>) {
+class Katzrdum(private val fields: List<ConfigField<out Any>>,
+               private val toJson: (KatzrdumConfig)->String) {
     companion object {
         const val CODE_PLACEHOLDER = "\${__CODE__}"
         private const val LOG_TAG = "Katz"
@@ -105,7 +107,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
         }
     }
 
-    constructor(vararg fields: ConfigField<out Any>): this(fields.toList())
+    constructor(vararg fields: ConfigField<out Any>, toJson: (KatzrdumConfig) -> String): this(fields.toList(), toJson)
 
     private inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
         private val activity = WeakReference(activity)
@@ -185,7 +187,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 //                val config = mapOf(
 //                    KEY_FIELDS to fields
 //                ).toString() // TODO: Encode with JSON via kotlinx.serialization
-                val config = "{\"fields\":[" + fields.joinToString { "{\"name\":\"${it.name}\"" } + "}]}"
+                val config = KatzrdumConfig(fields)
                 log("config: $config")
                 log("remotePublicKey: $remotePublicKey")
 
@@ -197,7 +199,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>) {
 //                            log("secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
 //                            write(encrypt(secretKey.encoded, remotePublicKey))
                             val encryptedSecret = encrypt(secretKey.encoded, remotePublicKey)
-                            val encryptedConfig = encrypt(config, secretKey, iv)
+                            val encryptedConfig = encrypt(toJson(config), secretKey, iv)
                             log("encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
                             log("encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
 //                            val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
@@ -285,6 +287,11 @@ class ClosingDelegate<T: Closeable> {
     }
 }
 
+data class KatzrdumConfig(
+    val fields: List<ConfigField<out Any>>,
+    val version: String = "1.0-SNAPSHOT"
+)
+
 sealed class ConfigField<T>(val name: String) {
     abstract val type: String
     abstract val value: T
@@ -292,26 +299,28 @@ sealed class ConfigField<T>(val name: String) {
     abstract fun parse(data: String): T
 }
 
-class StringField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
+open class StringField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
     override val type = "String"
-    override var value = default
-    override fun parse(data: String) = if (data.isEmpty()) default else data
+    final override var value = default
+    final override fun parse(data: String) = if (data.isEmpty()) default else data
 }
 
-class PasswordField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
+class PasswordField(name: String, default: String = ""): StringField(name, default) {
     override val type = "Password"
-    override var value = default
-    override fun parse(data: String) = if (data.isEmpty()) default else data
 }
 
-class IntegerField(name: String, @Keep val default: Long = 0): ConfigField<Long>(name) {
+open class IntegerField(name: String, @Keep val default: Int = 0): ConfigField<Int>(name) {
     override val type = "Integer"
-    override var value = default
-    override fun parse(data: String) = if (data.isEmpty()) default else data.toLong()
+    final override var value = default
+    final override fun parse(data: String) = data.toIntOrNull() ?: default
 }
 
-class DataField(name: String, @Keep val default: ByteArray = byteArrayOf()): ConfigField<ByteArray>(name) {
-    override val type = "Data"
+class ColorField(name: String, default: Int = 0): IntegerField(name, default) {
+    override val type = "Color"
+}
+
+class NumberField(name: String, @Keep val default: BigDecimal = BigDecimal.ZERO): ConfigField<BigDecimal>(name) {
+    override val type = "Number"
     override var value = default
-    override fun parse(data: String) = TODO("base64 decode")
+    override fun parse(data: String) = data.toBigDecimalOrNull() ?: default
 }
