@@ -10,7 +10,7 @@ abstract class ConfigField<T> {
       case StringField.type: return StringField(name, label);
       case PasswordField.type: return PasswordField(name, label);
       case LongIntegerField.type: return LongIntegerField(name, label);
-      case ColorField.type: return ColorField(name, label);
+      case ColorField.type: return ColorField(name, label, Color(jsonEntry['default']));
     }
     return null;
   }
@@ -40,7 +40,9 @@ class LongIntegerField extends ConfigField<int> {
 
 class ColorField extends ConfigField<Color> {
   static const type = "Color";
-  ColorField(String name, String label) : super(name, label);
+  ColorField(String name, String label, this.defaultColor) : super(name, label);
+
+  final Color defaultColor;
   @override
-  String encodeValue(Color value) => value.value.toString();
+  String encodeValue(Color value) => '#' + value.value.toRadixString(16);
 }

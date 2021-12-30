@@ -1,6 +1,7 @@
 package cat.balrog.katzrdum
 
 import android.content.DialogInterface
+import android.graphics.Color
 import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -28,6 +29,7 @@ import java.security.PublicKey
 import java.security.SecureRandom
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
+import java.util.IllegalFormatException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -207,6 +209,7 @@ class Katzrdum(private val fields: List<ConfigField<*>>) {
                                 ?: return@forEachLine
                             val rawValue = if (dataIndex == data.length) "" else data.substring(dataIndex)
                             val value = field.parse(rawValue)
+                            Log.d(LOG_TAG, "$rawValue -> $value")
                             runOnMain {
                                 postConfiguration(fieldName, value)
                             }
@@ -304,5 +307,9 @@ class LongIntegerField(override val name: String, override val label: String, pr
 @Serializable
 @SerialName("Color")
 class ColorField(override val name: String, override val label: String, private val default: Int = 0): ConfigField<Int>() {
-    override fun parse(data: String) = data.toIntOrNull() ?: default
+    override fun parse(data: String) = try {
+        Color.parseColor(data)
+    } catch (e: IllegalFormatException) {
+        default
+    }
 }

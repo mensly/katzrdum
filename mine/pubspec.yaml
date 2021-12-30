@@ -21,6 +21,7 @@ dependencies:
   font_awesome_flutter: ^9.2.0
   pointycastle: ^3.4.0
   basic_utils: ^3.9.4
+  flutter_colorpicker: ^1.0.3
 
 dev_dependencies:
   flutter_test:

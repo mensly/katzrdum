@@ -4,6 +4,7 @@ import 'package:basic_utils/basic_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:katzrdum/crypto.dart';
 import 'package:katzrdum/fields.dart';
 import 'dart:io';
@@ -235,9 +236,10 @@ class ConfigWidget extends StatefulWidget {
   final Uint8List iv;
 
   void sendValue(dynamic value) {
-    value = field.encodeValue(value);
-    final cipherMessage = base64Encode(
-        encryptString('${field.name}:$value', secretKey, iv).toList());
+    final message = '${field.name}:${field.encodeValue(value)}';
+    final cipherMessage =
+        base64Encode(encryptString(message, secretKey, iv).toList());
+    debugPrint('message: $message');
     debugPrint('cipherMessage: $cipherMessage');
     client.writeln(cipherMessage);
     debugPrint('sent config message');
@@ -252,7 +254,7 @@ class ConfigWidget extends StatefulWidget {
     } else if (field is StringField) {
       return _StringConfigWidgetState();
     } else if (field is ColorField) {
-      return _StringConfigWidgetState(); // TODO
+      return _ColorConfigWidgetState();
     }
     throw Exception("Unsupported field type");
   }
@@ -319,6 +321,58 @@ class _LongIntegerConfigWidgetState extends _ConfigWidgetState {
           FilteringTextInputFormatter.digitsOnly
         ],
         onSubmitted: (text) => widget.sendValue(getValue()),
+      );
+}
+
+class _ColorConfigWidgetState extends _ConfigWidgetState {
+  late Color _color;
+
+  @override
+  void initState() {
+    super.initState();
+    setState(() {
+      _color = (widget.field as ColorField).defaultColor;
+    });
+  }
+
+  @override
+  getValue() => _color;
+
+  void _showDialog(BuildContext context) {
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Choose Color'),
+            contentPadding: const EdgeInsets.all(0),
+            content: SingleChildScrollView(
+              child: MaterialPicker(
+                pickerColor: _color,
+                onColorChanged: (color) {
+                  setState(() {
+                    _color = color;
+                    Navigator.of(context).pop();
+                  });
+                },
+                enableLabel: true,
+                portraitOnly: true,
+              ),
+            ),
+            actions: [
+              TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  })
+            ],
+          );
+        });
+  }
+
+  @override
+  Widget buildInput(BuildContext context) => GestureDetector(
+        child: Container(height: 50.0, color: _color),
+        onTap: () => _showDialog(context),
       );
 }
 
