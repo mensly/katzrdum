@@ -2,7 +2,6 @@ package cat.balrog.katzrdum
 
 import android.content.DialogInterface
 import android.util.Log
-import androidx.annotation.Keep
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -11,9 +10,12 @@ import androidx.lifecycle.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.Closeable
 import java.lang.ref.WeakReference
-import java.math.BigDecimal
 import java.math.BigInteger
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -42,8 +44,7 @@ import kotlin.reflect.KProperty
  *
  * See https://mine.balrog.cat/#/config
  */
-class Katzrdum(private val fields: List<ConfigField<out Any>>,
-               private val toJson: (KatzrdumConfig)->String) {
+class Katzrdum(private val fields: List<ConfigField<*>>) {
     companion object {
         const val CODE_PLACEHOLDER = "\${__CODE__}"
         private const val LOG_TAG = "Katz"
@@ -107,7 +108,7 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>,
         }
     }
 
-    constructor(vararg fields: ConfigField<out Any>, toJson: (KatzrdumConfig) -> String): this(fields.toList(), toJson)
+    constructor(vararg fields: ConfigField<*>): this(fields.toList())
 
     private inner class LifecycleObserver(activity: AppCompatActivity) : DefaultLifecycleObserver, DialogInterface.OnClickListener {
         private val activity = WeakReference(activity)
@@ -199,13 +200,12 @@ class Katzrdum(private val fields: List<ConfigField<out Any>>,
 //                            log("secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
 //                            write(encrypt(secretKey.encoded, remotePublicKey))
                             val encryptedSecret = encrypt(secretKey.encoded, remotePublicKey)
-                            val encryptedConfig = encrypt(toJson(config), secretKey, iv)
-                            log("encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
-                            log("encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
+                            val encryptedConfig = encrypt(Json.encodeToString(config), secretKey, iv)
+//                            log("encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
+//                            log("encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
 //                            val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
 //                            log("decryptedConfig: ${String(decryptedConfig)}")
 //                            log("iv: ${String(Base64.getEncoder().encode(iv.iv))}")
-//                            write(encryptedSecret)
                             write(encryptedSecret + encryptedConfig)
                             flush()
                         }
@@ -287,40 +287,39 @@ class ClosingDelegate<T: Closeable> {
     }
 }
 
+@Serializable
 data class KatzrdumConfig(
-    val fields: List<ConfigField<out Any>>,
+    val fields: List<ConfigField<*>>,
     val version: String = "1.0-SNAPSHOT"
 )
 
-sealed class ConfigField<T>(val name: String) {
-    abstract val type: String
-    abstract val value: T
-    var label = name
+@Serializable
+sealed class ConfigField<T: java.io.Serializable> {
+    abstract val name: String
+    abstract val label: String
     abstract fun parse(data: String): T
 }
 
-open class StringField(name: String, @Keep val default: String = ""): ConfigField<String>(name) {
-    override val type = "String"
-    final override var value = default
-    final override fun parse(data: String) = if (data.isEmpty()) default else data
+@Serializable
+@SerialName("String")
+class StringField(override val name: String, override val label: String, private val default: String = ""): ConfigField<String>() {
+    override fun parse(data: String) = if (data.isEmpty()) default else data
 }
 
-class PasswordField(name: String, default: String = ""): StringField(name, default) {
-    override val type = "Password"
+@Serializable
+@SerialName("Password")
+class PasswordField(override val name: String, override val label: String, private val default: String = ""): ConfigField<String>() {
+    override fun parse(data: String) = if (data.isEmpty()) default else data
 }
 
-open class IntegerField(name: String, @Keep val default: Int = 0): ConfigField<Int>(name) {
-    override val type = "Integer"
-    final override var value = default
-    final override fun parse(data: String) = data.toIntOrNull() ?: default
+@Serializable
+@SerialName("LongInteger")
+class LongIntegerField(override val name: String, override val label: String, private val default: Long = 0): ConfigField<Long>() {
+    override fun parse(data: String) = data.toLongOrNull() ?: default
 }
 
-class ColorField(name: String, default: Int = 0): IntegerField(name, default) {
-    override val type = "Color"
-}
-
-class NumberField(name: String, @Keep val default: BigDecimal = BigDecimal.ZERO): ConfigField<BigDecimal>(name) {
-    override val type = "Number"
-    override var value = default
-    override fun parse(data: String) = data.toBigDecimalOrNull() ?: default
+@Serializable
+@SerialName("Color")
+class ColorField(override val name: String, override val label: String, private val default: Int = 0): ConfigField<Int>() {
+    override fun parse(data: String) = data.toIntOrNull() ?: default
 }

@@ -2,5 +2,10 @@
     <string name="app_name">Sample Katzrdum</string>
     <string name="text">Hello Brave New World</string>
     <string name="authenticated">(Authenticated)</string>
-    <string name="fav_number">My favourite number is: %1$s</string>
+    <string name="fav_number">My favourite number is: %1$d</string>
+
+    <string name="field_message">Message</string>
+    <string name="field_password">Authentication Password</string>
+    <string name="field_background">Background Colour</string>
+    <string name="field_fav_number">Favourite Number</string>
 </resources>
