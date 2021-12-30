@@ -12,6 +12,7 @@ Repositories for work done as subprojects of Katzrdum will be linked in this lis
 
 * [x] [vicheckin](https://github.com/mensly/viccheckin) - COVID QR code check-in for Victoria
 * [x] [WatchMe](https://github.com/mensly/watchmeforglass) - Simple video playing demonstration
+* [ ] [SimpleList](https://github.com/mensly/SimpleList) - Simple list app configured remotely and swipe to remove
 * [ ] Basic minimap
 * [ ] Snake game similar to Nokia phones
 * [ ] YouTube player for music and videos, hopefully integrate with user's Google account for playlists
