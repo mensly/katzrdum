@@ -111,11 +111,8 @@ class _ConfigPageState extends State<ConfigPage> {
         setState(() {
           _secretKey = secretKey;
         });
-        debugPrint('got ${secretKey.length} bytes secret key ${base64Encode(secretKey)}');
         String? message;
         try {
-          debugPrint('encrypted config: ${base64Encode(cipherData.sublist(secretKeySize))}');
-          debugPrint('iv: ${base64Encode(iv)}');
           message = decryptString(cipherData.sublist(secretKeySize), secretKey, iv);
           final fields = <String>[];
           final decoded = jsonDecode(message);
@@ -130,9 +127,6 @@ class _ConfigPageState extends State<ConfigPage> {
         } catch (e) {
           debugPrint('error receiving config: $e');
           // TODO: Handle json parsing errors etc
-          setState(() {
-            _config = ['Could not decode: ' + (message ?? String.fromCharCodes(cipherData)), e.toString()];
-          });
         }
       },
       onError: (error) {

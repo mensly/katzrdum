@@ -3,7 +3,6 @@ package cat.balrog.katzrdum.sample.sample
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.TextView
@@ -38,7 +37,6 @@ class MainActivity : AppCompatActivity(), KoinComponent {
         setContentView(textView)
         val config = katzdumClient.listen(this).asLiveData()
         config.observe(this) { (key, value) ->
-            Log.d("MainActivity", "$key: $value (${value.javaClass.simpleName})")
             // In a real application, you might persist values or process it somehow
             when (key) {
                 KEY_MESSAGE -> message = value as String

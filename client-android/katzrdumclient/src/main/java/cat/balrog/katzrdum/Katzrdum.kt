@@ -185,37 +185,21 @@ class Katzrdum(private val fields: List<ConfigField<*>>) {
                 val keyGen = KeyGenerator.getInstance("AES");
                 keyGen.init(SecureRandom.getInstanceStrong())
                 val secretKey = keyGen.generateKey()
-//                val config = mapOf(
-//                    KEY_FIELDS to fields
-//                ).toString() // TODO: Encode with JSON via kotlinx.serialization
                 val config = KatzrdumConfig(fields)
-                log("config: $config")
-                log("remotePublicKey: $remotePublicKey")
-
                 try {
                     Socket(remoteHost, PORT_TCP).use { socket ->
                         tcpSocket = socket
                         log("TCP Socket connected: $socket")
                         socket.getOutputStream().apply {
-//                            log("secretKey: ${String(Base64.getEncoder().encode(secretKey.encoded))}")
-//                            write(encrypt(secretKey.encoded, remotePublicKey))
                             val encryptedSecret = encrypt(secretKey.encoded, remotePublicKey)
                             val encryptedConfig = encrypt(Json.encodeToString(config), secretKey, iv)
-//                            log("encryptedSecret (${encryptedSecret.size}): ${String(Base64.getEncoder().encode(encryptedSecret))}")
-//                            log("encryptedConfig (${encryptedConfig.size}): ${String(Base64.getEncoder().encode(encryptedConfig))}")
-//                            val decryptedConfig = decrypt(encryptedConfig, secretKey, iv)
-//                            log("decryptedConfig: ${String(decryptedConfig)}")
-//                            log("iv: ${String(Base64.getEncoder().encode(iv.iv))}")
                             write(encryptedSecret + encryptedConfig)
                             flush()
                         }
                         log("Config sent")
                         socket.getInputStream().bufferedReader().forEachLine { encryptedMessage ->
-                            log("Received TCP: $encryptedMessage")
                             val encryptedData = Base64.getDecoder().decode(encryptedMessage)
-                            // TODO: Read in config values
                             val data = decryptString(encryptedData, secretKey, iv)
-                            log("Received data: $data")
                             val dataIndex = data.indexOf(CONFIG_DELIMITER) + 1
                             if (dataIndex <= 0) return@forEachLine
                             val fieldName = data.substring(0, dataIndex - 1)
@@ -281,7 +265,6 @@ class ClosingDelegate<T: Closeable> {
     operator fun getValue(obj: Any, property: KProperty<*>) = value
 
     operator fun setValue(obj: Any, property: KProperty<*>, value: T?) {
-//        this.value?.let { Log.d("Katz", "Closing $it") }
         this.value?.close()
         this.value = value
     }
