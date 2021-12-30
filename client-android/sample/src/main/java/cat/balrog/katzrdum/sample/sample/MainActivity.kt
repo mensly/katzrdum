@@ -3,7 +3,6 @@ package cat.balrog.katzrdum.sample.sample
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.TextView
@@ -44,8 +43,6 @@ class MainActivity : AppCompatActivity(), KoinComponent {
                 KEY_PASSWORD -> authenticated = true
                 KEY_BACKGROUND -> {
                     var color = value as Int
-                    Log.d("MainActivity", "$key: ${color.toString(16)}")
-                    Log.d("MainActivity", "${Color.alpha(color)}, ${Color.red(color)}, ${Color.green(color)}, ${Color.blue(color)},")
                     if (Color.alpha(color) == 0 && color != 0) {
                         color = Color.argb(0xff, Color.red(color), Color.green(color), Color.blue(color))
                     }

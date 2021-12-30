@@ -50,7 +50,7 @@ String encodePublicKey(PublicKey publicKey) {
   return lines.sublist(1, lines.length - 1).join('\n');
 }
 
-final _intMax = BigInt.from(9223372036854775807);
+final _intMax = BigInt.parse("9223372036854775807");
 String calculateCode(String encodedPublicKey) {
   var sum = BigInt.zero;
   for (final byte in utf8.encode(encodedPublicKey)) {
