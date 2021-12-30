@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:katzrdum/crypto.dart';
+import 'package:katzrdum/fields.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:udp/udp.dart';
@@ -33,7 +34,7 @@ class _ConfigPageState extends State<ConfigPage> {
   Uint8List? _secretKey;
   Uint8List? _iv;
   // TODO: Model class for config that includes fields
-  List<String>? _config;
+  List<ConfigField>? _fields;
 
   @override
   void initState() {
@@ -84,7 +85,7 @@ class _ConfigPageState extends State<ConfigPage> {
   void _disconnect() {
     _client?.close();
     setState(() {
-      _config = null;
+      _fields = null;
       _client = null;
     });
   }
@@ -102,27 +103,30 @@ class _ConfigPageState extends State<ConfigPage> {
     }
     setState(() {
       _client = client;
-      _config = null;
+      _fields = null;
     });
     _broadcasting = false;
     client.listen(
       (Uint8List cipherData) async {
-        final secretKey = decryptSecretKey(cipherData.sublist(0, secretKeySize), privateKey);
+        final secretKey =
+            decryptSecretKey(cipherData.sublist(0, secretKeySize), privateKey);
         setState(() {
           _secretKey = secretKey;
         });
         String? message;
         try {
-          message = decryptString(cipherData.sublist(secretKeySize), secretKey, iv);
-          final fields = <String>[];
+          message =
+              decryptString(cipherData.sublist(secretKeySize), secretKey, iv);
+          final fields = <ConfigField>[];
           final decoded = jsonDecode(message);
-          for (final field in decoded['fields']) {
-            // TODO: Properly parse different fields
-            final name = field['name'];
-            fields.add(name);
+          for (final fieldData in decoded['fields']) {
+            final field = ConfigField.parse(fieldData);
+            if (field != null) {
+              fields.add(field);
+            }
           }
           setState(() {
-            _config = fields;
+            _fields = fields;
           });
         } catch (e) {
           debugPrint('error receiving config: $e');
@@ -151,7 +155,7 @@ class _ConfigPageState extends State<ConfigPage> {
   Widget build(BuildContext context) {
     Widget body;
     final client = _client;
-    final config = _config;
+    final fields = _fields;
     final secretKey = _secretKey;
     final iv = _iv;
     if (kIsWeb) {
@@ -168,24 +172,31 @@ class _ConfigPageState extends State<ConfigPage> {
         MaterialButton(
             onPressed: () => _downloadApk(), child: const Text("Download APK"))
       ]);
-    } else if (client != null && config != null && secretKey != null && iv != null) {
+    } else if (client != null &&
+        fields != null &&
+        secretKey != null &&
+        iv != null) {
       // Show config UI
       body = ListView.builder(
-          itemCount: config.length + 2,
+          itemCount: fields.length + 2,
           itemBuilder: (context, index) {
             switch (index) {
-              case 0: return const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text('Configure',
-                  textAlign: TextAlign.center,
-                  textScaleFactor: 1.5),
-              );
-              case 1: return const DividerWidget();
-              default: return StringConfigWidget(
-                  name: config[index - 2], client: client, secretKey: secretKey, iv: iv);
+              case 0:
+                return const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text('Configure',
+                      textAlign: TextAlign.center, textScaleFactor: 1.5),
+                );
+              case 1:
+                return const DividerWidget();
+              default:
+                return ConfigWidget(
+                    field: fields[index - 2],
+                    client: client,
+                    secretKey: secretKey,
+                    iv: iv);
             }
-          }
-      );
+          });
     } else {
       final code = _code;
       final codeText = code == null ? '' : '\nCODE: $code';
@@ -209,47 +220,60 @@ class _ConfigPageState extends State<ConfigPage> {
   }
 }
 
-// TODO: Move to separate subpackage
-class StringConfigWidget extends StatefulWidget {
-  const StringConfigWidget({Key? key, required this.name, required this.client,
-    required this.secretKey, required this.iv})
+class ConfigWidget extends StatefulWidget {
+  const ConfigWidget(
+      {Key? key,
+      required this.field,
+      required this.client,
+      required this.secretKey,
+      required this.iv})
       : super(key: key);
 
-  // TODO: Use ConfigField class
-  final String name;
+  final ConfigField field;
   final Socket client;
   final Uint8List secretKey;
   final Uint8List iv;
 
-  void sendValue(String value) {
-    final cipherMessage = base64Encode(encryptString('$name:$value', secretKey, iv).toList());
+  void sendValue(dynamic value) {
+    value = field.encodeValue(value);
+    final cipherMessage = base64Encode(
+        encryptString('${field.name}:$value', secretKey, iv).toList());
     debugPrint('cipherMessage: $cipherMessage');
     client.writeln(cipherMessage);
     debugPrint('sent config message');
   }
 
   @override
-  State<StringConfigWidget> createState() => _StringConfigWidgetState();
+  State<ConfigWidget> createState() {
+    if (field is PasswordField) {
+      return _PasswordConfigWidgetState();
+    } else if (field is LongIntegerField) {
+      return _LongIntegerConfigWidgetState();
+    } else if (field is StringField) {
+      return _StringConfigWidgetState();
+    } else if (field is ColorField) {
+      return _StringConfigWidgetState(); // TODO
+    }
+    throw Exception("Unsupported field type");
+  }
 }
 
-class _StringConfigWidgetState extends State<StringConfigWidget> {
-  final _valueController = TextEditingController();
+abstract class _ConfigWidgetState extends State<ConfigWidget> {
+  Widget buildInput(BuildContext context);
+  dynamic getValue();
 
   @override
   Widget build(BuildContext context) {
-    final label = widget.name;
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Text(label),
+        Text(widget.field.label),
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: TextField(
-              controller: _valueController,
-              onSubmitted: (text) => widget.sendValue(text)),
+          child: buildInput(context),
         ),
         MaterialButton(
-          onPressed: () => widget.sendValue(_valueController.text),
+          onPressed: () => widget.sendValue(getValue()),
           color: Theme.of(context).buttonTheme.colorScheme!.background,
           child: const Text('Send'),
         ),
@@ -259,14 +283,51 @@ class _StringConfigWidgetState extends State<StringConfigWidget> {
   }
 }
 
+class _StringConfigWidgetState extends _ConfigWidgetState {
+  final _valueController = TextEditingController();
+
+  @override
+  getValue() => _valueController.text;
+
+  @override
+  Widget buildInput(BuildContext context) => TextField(
+        controller: _valueController,
+        onSubmitted: (text) => widget.sendValue(getValue()),
+      );
+}
+
+class _PasswordConfigWidgetState extends _StringConfigWidgetState {
+  @override
+  Widget buildInput(BuildContext context) => TextField(
+        controller: _valueController,
+        obscureText: true,
+        onSubmitted: (text) => widget.sendValue(getValue()),
+      );
+}
+
+class _LongIntegerConfigWidgetState extends _ConfigWidgetState {
+  final _valueController = TextEditingController();
+
+  @override
+  getValue() => int.parse(_valueController.text);
+
+  @override
+  Widget buildInput(BuildContext context) => TextField(
+        controller: _valueController,
+        keyboardType: TextInputType.number,
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.digitsOnly
+        ],
+        onSubmitted: (text) => widget.sendValue(getValue()),
+      );
+}
+
 class DividerWidget extends StatelessWidget {
   const DividerWidget({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-        height: 2.0,
-        color: Theme.of(context).colorScheme.secondary
-    );
+        height: 2.0, color: Theme.of(context).colorScheme.secondary);
   }
 }
